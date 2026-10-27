@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* Dark, industrial slicer look. No web fonts: system stack only (CLAUDE.md invariant 8). */
+@theme {
+  --color-bg: #111315;
+  --color-panel: #181b1f;
+  --color-panel-2: #20242a;
+  --color-line: #2d333b;
+  --color-ink: #e8eaed;
+  --color-muted: #a0a9b4; /* 6.9:1 on --color-panel */
+  --color-accent: #ffb020;
+  --color-accent-ink: #1a1200;
+  --color-ok: #5ee08a;
+  --color-warn: #ffc247;
+  --color-bad: #ff8585;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html, body, #root { min-height: 100%; }
+@media (min-width: 1024px) { html, body, #root { height: 100%; } }
+body { margin: 0; background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); font-size: 14px; }
+
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+input[type="range"] { accent-color: var(--color-accent); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

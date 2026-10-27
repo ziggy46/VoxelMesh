@@ -1,0 +1,10 @@
+.agy-out/
+node_modules/
+build/
+dist/
+.gradle/
+*.log
+.DS_Store
+# generated slicer fixtures over 1 MB: keep small ones, ignore the output dir
+web/fixtures-out/
+mod/run/

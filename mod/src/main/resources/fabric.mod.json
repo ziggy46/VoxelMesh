@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "voxelmesh",
+  "version": "${version}",
+  "name": "VoxelMesh",
+  "description": "Select a build and open it as a 3D-print-ready, multi-color model in the local VoxelMesh web app.",
+  "authors": ["VoxelMesh"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.voxelmesh.VoxelMeshClientMod"]
+  },
+  "mixins": [
+    { "config": "voxelmesh.client.mixins.json", "environment": "client" }
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
