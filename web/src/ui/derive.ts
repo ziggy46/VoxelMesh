@@ -12,6 +12,9 @@ export interface UiOptions {
   includeFoliage: boolean;
   solidifyInteriors: boolean;
   fixNonManifold: boolean;
+  /** Surface relief depth in sub-voxels (0 = off) and whether light texels are carved instead of dark. */
+  reliefDepth: 0 | 1 | 2;
+  reliefInvert: boolean;
 }
 
 export const DEFAULT_UI_OPTIONS: UiOptions = {
@@ -21,12 +24,21 @@ export const DEFAULT_UI_OPTIONS: UiOptions = {
   includeFoliage: false,
   solidifyInteriors: true,
   fixNonManifold: true,
+  reliefDepth: 0,
+  reliefInvert: false,
 };
 
 export const SCALE_MIN = 1.0;
 export const SCALE_MAX = 15.0;
 export const SLOT_COUNTS = [1, 4, 8, 16] as const;
 export const PLA_G_PER_CM3 = 1.24;
+export const NOZZLE_MM = 0.4;
+
+/** Width and depth of one relief texel in mm (one sub-voxel). */
+export const texelMm = (scaleMmPerBlock: number): number => scaleMmPerBlock / 16;
+
+/** Does any palette entry carry relief data? Builds from an older mod do not. */
+export const hasReliefData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.relief);
 
 /** Resin never solidifies interiors and never dilates (CLAUDE.md invariant 3), whatever the toggle says. */
 export function toMeshingOptions(u: UiOptions): MeshingOptions {
@@ -39,6 +51,8 @@ export function toMeshingOptions(u: UiOptions): MeshingOptions {
     fillInteriorCavities: fdm && u.solidifyInteriors,
     fixNonManifold: u.fixNonManifold,
     minNozzleWallMm: fdm ? DEFAULT_FDM_OPTIONS.minNozzleWallMm : 0,
+    reliefDepth: u.reliefDepth,
+    reliefInvert: u.reliefInvert,
   };
 }
 
@@ -52,6 +66,8 @@ export function needsRerun(a: UiOptions, b: UiOptions): boolean {
     ma.includeFoliage !== mb.includeFoliage ||
     ma.fillInteriorCavities !== mb.fillInteriorCavities ||
     ma.fixNonManifold !== mb.fixNonManifold ||
+    ma.reliefDepth !== mb.reliefDepth ||
+    (mb.reliefDepth !== 0 && ma.reliefInvert !== mb.reliefInvert) ||
     (scaleMatters && ma.scaleMmPerBlock !== mb.scaleMmPerBlock)
   );
 }

@@ -39,6 +39,9 @@ Merge identical boxes. Results are cached per `BlockState` (palette entries are 
 
 Caveat: tint depends on position (biome), so the palette key is `(state, tint)`, not just `state`. Use the palette id `"<state>"` plus a `#RRGGBB` suffix hash when tints differ across the selection; the web app only uses `color` and `boxes`, never parses the id.
 
+### 4.2b Relief maps
+For `solid` states the extractor also samples six 16×16 brightness maps (`docs/01 §3b`): for each face it takes the first model quad from `getQuads(state, direction, …)` whose vertices lie on that face and span all of it, maps each texel centre through the quad's own vertex positions and UVs to a sprite pixel (first animation frame), and stores Rec. 709 luma (mostly transparent pixels count as 128). Overlay layers (the grass side tint) are ignored. `core/ReliefSampler` holds the maths (no Minecraft types, unit-tested); the extractor only feeds it quad data.
+
 ### 4.3 Stretch (v2, out of scope now)
 Per-face colors (grass top vs. side) by splitting multi-colored blocks into face-colored sub-boxes.
 

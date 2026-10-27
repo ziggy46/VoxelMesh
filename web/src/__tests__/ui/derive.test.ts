@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sampleCastlePayload } from "../../samples/sampleCastlePayload";
 import {
   BEDS, DEFAULT_UI_OPTIONS, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
-  toMeshingOptions, totalIssues,
+  toMeshingOptions, totalIssues, texelMm, hasReliefData,
 } from "../../ui/derive";
 import { gzip, serializePayload } from "../../payload/loader";
 import { cubeMesh } from "../helpers";
@@ -35,6 +35,24 @@ describe("needsRerun", () => {
     expect(needsRerun(fdm, resin)).toBe(true);
     expect(needsRerun(fdm, { ...fdm, solidifyInteriors: false })).toBe(true);
     expect(needsRerun(resin, { ...resin, solidifyInteriors: false })).toBe(false);
+  });
+});
+
+describe("relief options", () => {
+  it("maps to meshing options and triggers a re-run only when it matters", () => {
+    const on = { ...DEFAULT_UI_OPTIONS, reliefDepth: 2 as const, reliefInvert: true };
+    expect(toMeshingOptions(on)).toMatchObject({ reliefDepth: 2, reliefInvert: true });
+    expect(toMeshingOptions(DEFAULT_UI_OPTIONS)).toMatchObject({ reliefDepth: 0, reliefInvert: false });
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, reliefDepth: 1 })).toBe(true);
+    expect(needsRerun({ ...DEFAULT_UI_OPTIONS, reliefDepth: 1 }, { ...DEFAULT_UI_OPTIONS, reliefDepth: 1, reliefInvert: true })).toBe(true);
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, reliefInvert: true })).toBe(false); // inert while relief is off
+  });
+  it("texel size is scale/16 and relief data is detected from the palette", () => {
+    expect(texelMm(4)).toBe(0.25);
+    expect(texelMm(16)).toBe(1);
+    expect(hasReliefData(sampleCastlePayload)).toBe(true);
+    expect(hasReliefData(null)).toBe(false);
+    expect(hasReliefData({ ...sampleCastlePayload, palette: sampleCastlePayload.palette.map((e) => ({ ...e, relief: undefined })) })).toBe(false);
   });
 });
 

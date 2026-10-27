@@ -9,6 +9,10 @@ export interface MeshingOptions {
   fillInteriorCavities: boolean; // default: true for fdm, false for resin
   fixNonManifold: boolean; // default true
   minNozzleWallMm: number; // default 0.8 (fdm), 0 (resin)
+  /** Surface relief: carve this many sub-voxels into dark texels of full-cube faces. 0 = off (default). */
+  reliefDepth?: 0 | 1 | 2;
+  /** Carve the light texels instead of the dark ones. */
+  reliefInvert?: boolean;
 }
 
 /** Block-chunked sparse grid in SLICER space. Block index = bx + by*Bx + bz*Bx*By. */

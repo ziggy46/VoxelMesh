@@ -25,6 +25,8 @@ export interface PaletteEntry {
   color: string | null;  // "#RRGGBB", null for air
   category: BlockCategory;
   boxes: SubVoxelBox[];  // [] for air
+  /** Optional, full-cube blocks only: base64 of 1536 luma bytes = six 16x16 face maps (see Surface relief below). */
+  relief?: string;
 }
 
 export interface VoxelPayload {
@@ -45,6 +47,18 @@ export interface VoxelPayload {
 - Reject: `version !== 1`, `palette[0].id !== "minecraft:air"`, any box with `max <= min` or outside `[0,16]`, decoded byte length ≠ `2*sx*sy*sz`, any voxel index ≥ `palette.length`, CRC mismatch.
 - Warn above 64³ blocks, hard-gate above 128³.
 - Palette ≤ 65,534 entries (bucket id 65535 is reserved and unused; see `docs/03`).
+
+## 3b. Surface relief data (`relief`)
+
+Per full-cube palette entry, six 16×16 maps of texture brightness (0 = dark, 255 = light), concatenated in the order `DOWN, UP, NORTH, SOUTH, WEST, EAST` (Minecraft's `Direction` ids), 256 bytes each, `index = a + b*16`, in MC block-local axes:
+
+| Faces | a | b |
+|---|---|---|
+| DOWN, UP | x | z |
+| NORTH, SOUTH | x | y |
+| WEST, EAST | z | y |
+
+One texel is one sub-voxel on that face. Texels are sampled through the face quad's own UVs, so texture rotation and mirroring are honoured. A face with no full-face quad is flat (128). The web loader rejects a `relief` that does not decode to exactly 1536 bytes. Payloads without `relief` are valid; relief is simply unavailable for them.
 
 ## 4. Category heuristics (in the mod)
 

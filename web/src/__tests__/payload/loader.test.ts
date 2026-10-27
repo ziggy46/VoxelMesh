@@ -99,3 +99,26 @@ describe("loadPayloadBytes", () => {
     await expect(loadPayloadBytes(Uint8Array.from([0x1f, 0x8b, 1, 2, 3]))).rejects.toThrow(PayloadError);
   });
 });
+
+describe("palette relief field", () => {
+  const good = () => {
+    const p = clone(small()) as any;
+    p.palette[1].relief = btoa(String.fromCharCode(...new Uint8Array(1536).fill(128)));
+    return p;
+  };
+  it("accepts a 1536-byte base64 relief and keeps it", () => {
+    const { payload } = parsePayload(good());
+    expect(payload.palette[1]!.relief).toBeTypeOf("string");
+  });
+  it("rejects a relief of the wrong length or type", () => {
+    const short = good();
+    short.palette[1].relief = btoa("abc");
+    expect(() => parsePayload(short)).toThrow(/relief/);
+    const wrong = good();
+    wrong.palette[1].relief = 5;
+    expect(() => parsePayload(wrong)).toThrow(/relief/);
+  });
+  it("payloads without relief still load", () => {
+    expect(() => parsePayload(small())).not.toThrow();
+  });
+});

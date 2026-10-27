@@ -1,5 +1,6 @@
 // Shared palette entries for fixtures and the sample castle.
 import type { PaletteEntry, SubVoxelBox } from "../types/voxelPayload";
+import { BRICKS, COBBLE, DIRT, PLANKS } from "./relief";
 
 const FULL: SubVoxelBox = [0, 0, 0, 16, 16, 16];
 
@@ -7,16 +8,19 @@ function block(id: string, name: string, color: string, category: PaletteEntry["
   return { id, name, color, category, boxes };
 }
 
-const solid = (id: string, name: string, color: string) => block(id, name, color, "solid", [FULL]);
+const solid = (id: string, name: string, color: string, relief?: string): PaletteEntry => ({
+  ...block(id, name, color, "solid", [FULL]),
+  ...(relief ? { relief } : {}),
+});
 
 export const B = {
-  stone: solid("minecraft:stone_bricks", "Stone Bricks", "#7A797A"),
-  cobble: solid("minecraft:cobblestone", "Cobblestone", "#6E6E6E"),
-  planks: solid("minecraft:oak_planks", "Oak Planks", "#A27F49"),
+  stone: solid("minecraft:stone_bricks", "Stone Bricks", "#7A797A", BRICKS),
+  cobble: solid("minecraft:cobblestone", "Cobblestone", "#6E6E6E", COBBLE),
+  planks: solid("minecraft:oak_planks", "Oak Planks", "#A27F49", PLANKS),
   red: solid("minecraft:red_wool", "Red Wool", "#A12722"),
   blue: solid("minecraft:blue_wool", "Blue Wool", "#35399D"),
-  grass: solid("minecraft:grass_block", "Grass Block", "#5E9A38"),
-  dirt: solid("minecraft:dirt", "Dirt", "#866043"),
+  grass: solid("minecraft:grass_block", "Grass Block", "#5E9A38", DIRT),
+  dirt: solid("minecraft:dirt", "Dirt", "#866043", DIRT),
   gold: solid("minecraft:gold_block", "Block of Gold", "#F9D43E"),
 
   stoneSlab: block("minecraft:stone_brick_slab[type=bottom]", "Stone Brick Slab", "#7A797A", "partial", [[0, 0, 0, 16, 8, 16]]),

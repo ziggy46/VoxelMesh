@@ -84,6 +84,10 @@ public final class PayloadWriter {
                 boxes.add(a);
             }
             o.add("boxes", boxes);
+            if (e.relief() != null) {
+                if (e.relief().length != ReliefSampler.TOTAL_BYTES) throw new IllegalArgumentException("relief must be " + ReliefSampler.TOTAL_BYTES + " bytes");
+                o.addProperty("relief", Base64.getEncoder().encodeToString(e.relief()));
+            }
             pal.add(o);
         }
         root.add("palette", pal);

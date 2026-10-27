@@ -98,7 +98,7 @@ public final class PayloadBuilder {
         // The web app only reads colour and boxes, never the id; the tint suffix just keeps ids unique.
         String id = BlockArgumentParser.stringifyBlockState(state) + (tint == -1 ? "" : "#tint=" + ColorMath.hex(tint).substring(1));
         String name = state.getBlock().getName().getString();
-        return new PaletteEntry(id, name, ColorMath.hex(rgb), info.category() == null ? Category.PARTIAL : info.category(), info.boxes());
+        return new PaletteEntry(id, name, ColorMath.hex(rgb), info.category() == null ? Category.PARTIAL : info.category(), info.boxes(), info.relief());
     }
 
     public Result result() {

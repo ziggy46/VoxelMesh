@@ -7,13 +7,14 @@ import type { VoxelPayload } from "../types/voxelPayload";
 import { validateAll } from "../validate/manifold";
 import { quantizePaletteToSlots } from "./colorQuantizer";
 import { fillInteriorCavities } from "./meshingKernel/fill";
+import { applyRelief } from "./meshingKernel/relief";
 import { buildSparseGrid } from "./meshingKernel/grid";
 import { extractMeshes } from "./meshingKernel/extract";
 import { repairNonManifold } from "./meshingKernel/repair";
 import { healTJunctions } from "./meshingKernel/tjunction";
 
-export type Stage = "decode" | "quantize" | "grid" | "fill" | "repair" | "mesh" | "heal" | "validate";
-export const STAGES: readonly Stage[] = ["decode", "quantize", "grid", "fill", "repair", "mesh", "heal", "validate"];
+export type Stage = "decode" | "quantize" | "grid" | "relief" | "fill" | "repair" | "mesh" | "heal" | "validate";
+export const STAGES: readonly Stage[] = ["decode", "quantize", "grid", "relief", "fill", "repair", "mesh", "heal", "validate"];
 
 export interface PipelineResult {
   quantization: QuantizationResult;
@@ -22,6 +23,10 @@ export interface PipelineResult {
   meshes: ColorBucketMesh[];
   reports: ManifoldReport[];
   repair: { bridgesAdded: number; recolored: number } | null;
+  /** Cells carved by surface relief, or null when relief is off or was skipped. */
+  reliefCarved: number | null;
+  /** Set when relief was requested but the build is too large for the carve budget (docs: relief.ts). */
+  reliefSkipped: { wanted: number; limit: number } | null;
   /** Wall-clock milliseconds per stage. */
   timings: Record<Stage, number>;
 }
@@ -63,10 +68,12 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
   }
 
   const grid = step("grid", () => buildSparseGrid(p, o, paletteToBucket));
+  // Relief carves surface texels before fill and repair, so both still see (and guarantee) the final geometry.
+  const relief = o.reliefDepth ? step("relief", () => applyRelief(grid, p, paletteToBucket, o)) : null;
   if (o.fillInteriorCavities) step("fill", () => fillInteriorCavities(grid));
   const repair = o.fixNonManifold ? step("repair", () => repairNonManifold(grid)) : null;
   const raw = step("mesh", () => extractMeshes(grid));
   const meshes = step("heal", () => raw.map(healTJunctions));
   const reports = step("validate", () => validateAll(meshes));
-  return { quantization, paletteToBucket, meshes, reports, repair, timings };
+  return { quantization, paletteToBucket, meshes, reports, repair, reliefCarved: relief && !relief.skipped ? relief.removed : null, reliefSkipped: relief?.skipped ?? null, timings };
 }

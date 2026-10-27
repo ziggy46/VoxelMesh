@@ -9,12 +9,23 @@ describe("runPipeline", () => {
   it("reports every stage in order and produces valid meshes within the slot limit", () => {
     const seen: Stage[] = [];
     const r = runPipeline(sampleCastlePayload, DEFAULT_FDM_OPTIONS, { maxSlots: 4, onProgress: (s, f) => f === 1 && seen.push(s) });
-    expect(seen).toEqual([...STAGES]);
+    expect(seen).toEqual(STAGES.filter((s) => s !== "relief")); // relief only runs when enabled
     expect(r.quantization.buckets.length).toBeLessThanOrEqual(4);
     expect(r.meshes.length).toBeGreaterThan(0);
     expect(r.reports.every((x) => x.ok)).toBe(true);
     expect(r.repair).not.toBeNull();
     expect(Object.values(r.timings).every((t) => t >= 0)).toBe(true);
+  });
+
+  it("runs the relief stage between grid and fill when enabled, and reports what it carved", () => {
+    const seen: Stage[] = [];
+    const r = runPipeline(sampleCastlePayload, { ...DEFAULT_FDM_OPTIONS, reliefDepth: 1 }, { maxSlots: 4, onProgress: (s, f) => f === 1 && seen.push(s) });
+    expect(seen.indexOf("relief")).toBe(seen.indexOf("grid") + 1);
+    expect(seen).toEqual([...STAGES]);
+    expect(r.reliefCarved).toBeGreaterThan(0);
+    expect(r.reliefSkipped).toBeNull();
+    expect(r.reports.every((x) => x.ok)).toBe(true);
+    expect(runPipeline(sampleCastlePayload, DEFAULT_FDM_OPTIONS, { maxSlots: 4 }).reliefCarved).toBeNull();
   });
 
   it("skips fill and repair when disabled", () => {

@@ -21,6 +21,8 @@ export interface RunResult {
   paletteToBucket: Uint16Array;
   reports: ManifoldReport[];
   repair: { bridgesAdded: number; recolored: number } | null;
+  reliefCarved: number | null;
+  reliefSkipped: { wanted: number; limit: number } | null;
   timings: Record<Stage, number>;
 }
 

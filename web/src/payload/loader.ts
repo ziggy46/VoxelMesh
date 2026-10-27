@@ -1,6 +1,6 @@
 // Payload loader / validator: docs/01_PAYLOAD_SPEC.md §3
 import type { BlockCategory, PaletteEntry, VoxelPayload } from "../types/voxelPayload";
-import { MAX_BLOCKS, MAX_PALETTE_ENTRIES, WARN_BLOCKS } from "../types/voxelPayload";
+import { MAX_BLOCKS, MAX_PALETTE_ENTRIES, RELIEF_BYTES, WARN_BLOCKS } from "../types/voxelPayload";
 
 export class PayloadError extends Error {
   constructor(message: string) {
@@ -109,6 +109,10 @@ function validatePaletteEntry(e: unknown, i: number): PaletteEntry {
       fail(`palette[${i}].boxes[${j}] has max <= min`);
     }
   });
+  if (e.relief !== undefined) {
+    if (typeof e.relief !== "string") fail(`palette[${i}].relief must be a base64 string`);
+    if (base64ToBytes(e.relief).length !== RELIEF_BYTES) fail(`palette[${i}].relief must decode to ${RELIEF_BYTES} bytes`);
+  }
   return e as unknown as PaletteEntry;
 }
 

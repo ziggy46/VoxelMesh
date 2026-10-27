@@ -3,6 +3,7 @@ package com.voxelmesh.util;
 import com.voxelmesh.core.BoxQuantizer;
 import com.voxelmesh.core.Category;
 import com.voxelmesh.core.ColorMath;
+import com.voxelmesh.core.ReliefSampler;
 import com.voxelmesh.mixin.SpriteContentsAccessor;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,12 +14,15 @@ import java.util.Set;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.model.BakedModel;
+import net.minecraft.client.render.model.BakedQuad;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.texture.SpriteContents;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.random.Random;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.shape.VoxelShape;
 
@@ -32,7 +36,8 @@ public final class BlockGeometryExtractor {
     private static final List<int[]> FLUID_BOXES = List.of(new int[] {0, 0, 0, 16, 14, 16});
     private static final List<int[]> FOLIAGE_BOXES = List.of(new int[] {4, 0, 4, 12, 10, 12});
 
-    public record StateInfo(Category category, List<int[]> boxes, int rgb) {}
+    /** `relief` is 1536 luma bytes for full-cube blocks (see ReliefSampler), else null. */
+    public record StateInfo(Category category, List<int[]> boxes, int rgb, byte[] relief) {}
 
     private final Map<BlockState, StateInfo> cache = new HashMap<>();
     private final Set<BlockState> invisible = new HashSet<>();
@@ -70,7 +75,8 @@ public final class BlockGeometryExtractor {
                 category = BoxQuantizer.classify(boxes);
             }
         }
-        return new StateInfo(category, boxes, baseColor(state, world, pos));
+        byte[] relief = category == Category.SOLID ? sampleRelief(state) : null;
+        return new StateInfo(category, boxes, baseColor(state, world, pos), relief);
     }
 
     private static boolean isPlantLike(BlockState state) {
@@ -90,19 +96,69 @@ public final class BlockGeometryExtractor {
         return avg >= 0 ? avg : state.getMapColor(world, pos).color;
     }
 
+    private record Pixels(int[] abgr, int w, int h) {}
+
+    /** First-frame RGBA pixels of a sprite (animated sprites stack frames vertically; only the first is read). */
+    private static Pixels pixelsOf(Sprite sprite) {
+        SpriteContents contents = sprite.getContents();
+        NativeImage image = ((SpriteContentsAccessor) contents).voxelmesh$getImage();
+        int w = contents.getWidth(), h = contents.getHeight();
+        int[] pixels = new int[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) pixels[x + y * w] = image.getColor(x, y);
+        return new Pixels(pixels, w, h);
+    }
+
     private int averageSpriteColor(BlockState state) {
         try {
             BakedModel model = client.getBlockRenderManager().getModels().getModel(state);
-            Sprite sprite = model.getParticleSprite();
-            SpriteContents contents = sprite.getContents();
-            NativeImage image = ((SpriteContentsAccessor) contents).voxelmesh$getImage();
-            int w = contents.getWidth(), h = contents.getHeight(); // one frame; animated strips stack frames vertically
-            int[] pixels = new int[w * h];
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++) pixels[x + y * w] = image.getColor(x, y);
-            return ColorMath.averageAbgr(pixels);
+            return ColorMath.averageAbgr(pixelsOf(model.getParticleSprite()).abgr());
         } catch (RuntimeException e) {
             return -1; // closed or non-RGBA image: fall back to the map colour
         }
+    }
+
+    /**
+     * Six 16x16 brightness maps (DOWN, UP, NORTH, SOUTH, WEST, EAST) from each face's own quad and sprite. A face with no
+     * full-face quad (or an unreadable sprite) stays flat, so it never produces relief. Only the first full-face quad is
+     * used: overlay layers (grass side tint) are ignored.
+     */
+    private byte[] sampleRelief(BlockState state) {
+        BakedModel model;
+        try {
+            model = client.getBlockRenderManager().getModels().getModel(state);
+        } catch (RuntimeException e) {
+            return null;
+        }
+        byte[][] faces = new byte[ReliefSampler.FACES][];
+        boolean any = false;
+        for (int f = 0; f < ReliefSampler.FACES; f++) {
+            try {
+                Direction dir = Direction.byId(f);
+                for (BakedQuad quad : model.getQuads(state, dir, Random.create(42L))) {
+                    int[] v = quad.getVertexData();
+                    float[] xyz = new float[12];
+                    float[] uv = new float[8];
+                    Sprite sprite = quad.getSprite();
+                    float du = sprite.getMaxU() - sprite.getMinU(), dv = sprite.getMaxV() - sprite.getMinV();
+                    for (int i = 0; i < 4; i++) {
+                        int o = i * 8; // x,y,z, colour, u, v, light, normal
+                        xyz[3 * i] = Float.intBitsToFloat(v[o]);
+                        xyz[3 * i + 1] = Float.intBitsToFloat(v[o + 1]);
+                        xyz[3 * i + 2] = Float.intBitsToFloat(v[o + 2]);
+                        uv[2 * i] = (Float.intBitsToFloat(v[o + 4]) - sprite.getMinU()) / du;
+                        uv[2 * i + 1] = (Float.intBitsToFloat(v[o + 5]) - sprite.getMinV()) / dv;
+                    }
+                    if (!ReliefSampler.coversFace(f, xyz)) continue;
+                    Pixels px = pixelsOf(sprite);
+                    faces[f] = ReliefSampler.sampleFace(f, xyz, uv, px.abgr(), px.w(), px.h());
+                    any |= faces[f] != null;
+                    break;
+                }
+            } catch (RuntimeException e) {
+                faces[f] = null;
+            }
+        }
+        return any ? ReliefSampler.combine(faces) : null;
     }
 }

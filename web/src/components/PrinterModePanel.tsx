@@ -2,7 +2,7 @@
 import { useId, useRef, useState, type DragEvent } from "react";
 import { SAMPLES } from "../samples";
 import { usePrintStore } from "../store/usePrintStore";
-import { BEDS, SCALE_MAX, SCALE_MIN, fitsBed, fmtSize, modelSizeMm, type PrinterMode, type UiOptions } from "../ui/derive";
+import { BEDS, NOZZLE_MM, SCALE_MAX, SCALE_MIN, fitsBed, fmtSize, hasReliefData, modelSizeMm, texelMm, type PrinterMode, type UiOptions } from "../ui/derive";
 
 const heading = "mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted";
 const card = "rounded border border-line bg-panel-2 p-3";
@@ -26,7 +26,7 @@ const TARGETS: Array<{ id: PrinterMode; title: string; detail: string }> = [
 ];
 
 export function PrinterModePanel() {
-  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadBytes, loadSample } = usePrintStore();
+  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadBytes, loadSample, reliefSkipped, reliefCarved } = usePrintStore();
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleId = useId();
@@ -36,6 +36,10 @@ export function PrinterModePanel() {
   const bed = BEDS[options.printerMode];
   const size = payload ? modelSizeMm(payload, options.scaleMmPerBlock) : null;
   const fits = size ? fitsBed(size, bed) : true;
+  const hasRelief = hasReliefData(payload);
+  const texel = texelMm(options.scaleMmPerBlock);
+  const fineForFdm = options.printerMode === "fdm" && texel < NOZZLE_MM;
+  const DEPTHS = [0, 1, 2] as const;
 
   const readFile = async (f: File | undefined) => {
     if (f) await loadBytes(f.name.replace(/\.vxm(\.json)?(\.gz)?$/i, ""), new Uint8Array(await f.arrayBuffer()));
@@ -113,6 +117,38 @@ export function PrinterModePanel() {
         <Check label="Solidify interiors" hint={options.printerMode === "resin" ? "FDM only: Resin keeps native detail" : "Fill sealed cavities"}
           checked={options.printerMode === "fdm" && options.solidifyInteriors} disabled={options.printerMode === "resin"} onChange={(v) => set("solidifyInteriors", v)} />
         <Check label="Fix non-manifold edges" hint="Adds or recolours single sub-voxels where parts only touch at an edge" checked={options.fixNonManifold} onChange={(v) => set("fixNonManifold", v)} />
+      </fieldset>
+
+      <fieldset disabled={!hasRelief}>
+        <legend className={heading}>Surface relief</legend>
+        <p className="mb-2 text-xs text-muted">
+          {hasRelief
+            ? "Carves the block textures into the surface so a single-colour print still looks textured."
+            : "This build has no texture data. Re-export it with the updated mod to enable relief."}
+        </p>
+        <div role="radiogroup" aria-label="Relief depth" className={`flex overflow-hidden rounded border border-line ${hasRelief ? "" : "opacity-50"}`}>
+          {DEPTHS.map((d) => (
+            <button key={d} type="button" role="radio" aria-checked={options.reliefDepth === d} onClick={() => set("reliefDepth", d)}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium ${options.reliefDepth === d ? "bg-accent text-accent-ink" : "text-ink hover:bg-panel-2"}`}>
+              {d === 0 ? "Off" : d === 1 ? "1 texel" : "2 texels"}
+            </button>
+          ))}
+        </div>
+        <div className={options.reliefDepth === 0 ? "opacity-60" : ""}>
+          <Check label="Invert" hint="Carve the light areas instead of the dark ones" checked={options.reliefInvert} disabled={options.reliefDepth === 0 || !hasRelief} onChange={(v) => set("reliefInvert", v)} />
+        </div>
+        <p className="mt-1 font-mono text-xs" aria-live="polite">1 texel = {texel.toFixed(2)} mm{options.reliefDepth > 0 ? ` · depth ${(texel * options.reliefDepth).toFixed(2)} mm` : ""}</p>
+        {hasRelief && options.reliefDepth > 0 && fineForFdm && (
+          <p role="status" className="mt-1 text-xs text-warn"><span aria-hidden="true">⚠ </span>Finer than a {NOZZLE_MM} mm nozzle, so it will barely show on FDM. Use at least {(NOZZLE_MM * 16).toFixed(1)} mm per block.</p>
+        )}
+        {reliefSkipped && options.reliefDepth > 0 && (
+          <p role="status" className="mt-1 text-xs text-warn">
+            <span aria-hidden="true">⚠ </span>Relief skipped: it would carve {reliefSkipped.wanted.toLocaleString()} texels (limit {reliefSkipped.limit.toLocaleString()}) and make the mesh too heavy. Use a smaller selection or turn relief off.
+          </p>
+        )}
+        {reliefCarved !== null && options.reliefDepth > 0 && (
+          <p className="mt-1 text-xs text-muted">Carved {reliefCarved.toLocaleString()} texels.</p>
+        )}
       </fieldset>
     </aside>
   );
