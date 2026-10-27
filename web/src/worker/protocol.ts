@@ -23,6 +23,7 @@ export interface RunResult {
   repair: { bridgesAdded: number; recolored: number } | null;
   reliefCarved: number | null;
   reliefSkipped: { wanted: number; limit: number } | null;
+  reliefUsedDepth: number | null;
   timings: Record<Stage, number>;
 }
 

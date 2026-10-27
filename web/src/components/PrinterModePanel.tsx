@@ -26,7 +26,7 @@ const TARGETS: Array<{ id: PrinterMode; title: string; detail: string }> = [
 ];
 
 export function PrinterModePanel() {
-  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadBytes, loadSample, reliefSkipped, reliefCarved } = usePrintStore();
+  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadBytes, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth } = usePrintStore();
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleId = useId();
@@ -39,7 +39,7 @@ export function PrinterModePanel() {
   const hasRelief = hasReliefData(payload);
   const texel = texelMm(options.scaleMmPerBlock);
   const fineForFdm = options.printerMode === "fdm" && texel < NOZZLE_MM;
-  const DEPTHS = [0, 1, 2] as const;
+  const DEPTHS = [0, 1, 2, 3] as const;
 
   const readFile = async (f: File | undefined) => {
     if (f) await loadBytes(f.name.replace(/\.vxm(\.json)?(\.gz)?$/i, ""), new Uint8Array(await f.arrayBuffer()));
@@ -123,14 +123,14 @@ export function PrinterModePanel() {
         <legend className={heading}>Surface relief</legend>
         <p className="mb-2 text-xs text-muted">
           {hasRelief
-            ? "Carves the block textures into the surface so a single-colour print still looks textured."
+            ? "Turns each block texture into a depth map: darker areas are carved deeper, so a single-colour print still looks textured."
             : "This build has no texture data. Re-export it with the updated mod to enable relief."}
         </p>
         <div role="radiogroup" aria-label="Relief depth" className={`flex overflow-hidden rounded border border-line ${hasRelief ? "" : "opacity-50"}`}>
           {DEPTHS.map((d) => (
             <button key={d} type="button" role="radio" aria-checked={options.reliefDepth === d} onClick={() => set("reliefDepth", d)}
               className={`flex-1 px-2 py-1.5 text-xs font-medium ${options.reliefDepth === d ? "bg-accent text-accent-ink" : "text-ink hover:bg-panel-2"}`}>
-              {d === 0 ? "Off" : d === 1 ? "1 texel" : "2 texels"}
+              {d === 0 ? "Off" : `${d} texel${d === 1 ? "" : "s"}`}
             </button>
           ))}
         </div>
@@ -147,7 +147,10 @@ export function PrinterModePanel() {
           </p>
         )}
         {reliefCarved !== null && options.reliefDepth > 0 && (
-          <p className="mt-1 text-xs text-muted">Carved {reliefCarved.toLocaleString()} texels.</p>
+          <p className="mt-1 text-xs text-muted">
+            Carved {reliefCarved.toLocaleString()} texels
+            {reliefUsedDepth !== null && reliefUsedDepth < options.reliefDepth ? `, reduced to ${reliefUsedDepth} deep to keep the mesh manageable` : ""}.
+          </p>
         )}
       </fieldset>
     </aside>

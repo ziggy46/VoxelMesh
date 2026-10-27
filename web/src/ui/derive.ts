@@ -1,6 +1,6 @@
 // Pure UI helpers: option mapping, bed sizes, size/mass estimates, slot membership. No React, no DOM.
 import type { FilamentSlotBucket } from "../types/color";
-import { DEFAULT_FDM_OPTIONS, type ManifoldReport, type MeshingOptions } from "../types/mesh";
+import { DEFAULT_FDM_OPTIONS, type ManifoldReport, type MeshingOptions, type ReliefDepth } from "../types/mesh";
 import type { PaletteEntry, VoxelPayload } from "../types/voxelPayload";
 
 export type PrinterMode = "fdm" | "resin";
@@ -13,7 +13,7 @@ export interface UiOptions {
   solidifyInteriors: boolean;
   fixNonManifold: boolean;
   /** Surface relief depth in sub-voxels (0 = off) and whether light texels are carved instead of dark. */
-  reliefDepth: 0 | 1 | 2;
+  reliefDepth: ReliefDepth;
   reliefInvert: boolean;
 }
 

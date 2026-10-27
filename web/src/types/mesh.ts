@@ -1,6 +1,9 @@
 // Contract: docs/03_VOXEL_MESHING_ENGINE.md §0 and docs/06 §1
 import type { SubVoxelBox, VoxelPayload } from "./voxelPayload";
 
+/** Surface relief depth in sub-voxels (texels). */
+export type ReliefDepth = 0 | 1 | 2 | 3;
+
 export interface MeshingOptions {
   printerMode: "fdm" | "resin";
   scaleMmPerBlock: number; // default 4.0
@@ -9,8 +12,8 @@ export interface MeshingOptions {
   fillInteriorCavities: boolean; // default: true for fdm, false for resin
   fixNonManifold: boolean; // default true
   minNozzleWallMm: number; // default 0.8 (fdm), 0 (resin)
-  /** Surface relief: carve this many sub-voxels into dark texels of full-cube faces. 0 = off (default). */
-  reliefDepth?: 0 | 1 | 2;
+  /** Surface relief: carve up to this many sub-voxels, scaled by texture darkness, into full-cube faces. 0 = off (default). */
+  reliefDepth?: ReliefDepth;
   /** Carve the light texels instead of the dark ones. */
   reliefInvert?: boolean;
 }

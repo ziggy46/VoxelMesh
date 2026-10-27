@@ -43,6 +43,7 @@ interface PrintState {
   /** Surface relief outcome of the last run: cells carved, or why it was skipped. */
   reliefCarved: number | null;
   reliefSkipped: { wanted: number; limit: number } | null;
+  reliefUsedDepth: number | null;
   timings: Record<string, number> | null;
 
   viewMode: ViewMode;
@@ -85,7 +86,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
         if (mySeq !== seq) return; // stale
         set({
           status: "ready", progress: null, meshes: r.meshes, buckets: r.buckets, paletteToBucket: r.paletteToBucket,
-          reports: r.reports, repair: r.repair, reliefCarved: r.reliefCarved, reliefSkipped: r.reliefSkipped, timings: r.timings,
+          reports: r.reports, repair: r.repair, reliefCarved: r.reliefCarved, reliefSkipped: r.reliefSkipped, reliefUsedDepth: r.reliefUsedDepth, timings: r.timings,
         });
       })
       .catch((e: unknown) => {
@@ -104,7 +105,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
     getClient().load(loaded.payload);
     set({
       sourceName: name, payload: loaded.payload, counts, warnings: loaded.warnings, loading: false, loadError: null,
-      overrides: {}, slotColors: {}, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, timings: null,
+      overrides: {}, slotColors: {}, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, timings: null,
       sectionMm: null,
     });
     schedule(true);
@@ -113,7 +114,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
   return {
     sourceName: null, payload: null, counts: null, warnings: [], loading: false, loadError: null,
     options: DEFAULT_UI_OPTIONS, slotCount: 4, overrides: {}, slotColors: {},
-    status: "idle", progress: null, error: null, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, timings: null,
+    status: "idle", progress: null, error: null, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, timings: null,
     viewMode: "shaded", sectionMm: null,
 
     loadBytes: async (name, bytes) => {

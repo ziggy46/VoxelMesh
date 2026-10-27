@@ -10,7 +10,7 @@ Vite + React 19 + TypeScript; `three`, `@react-three/fiber`, `@react-three/drei`
 - Printer target: **FDM Multi-Color (0.4 mm)**: 0.8 mm min wall + cavity fill. **Resin (MSLA)**: native detail, no fill.
 - Scale slider 1.0–15.0 mm/block (default 4.0) with live bounding box readout (`96.0 × 96.0 × 72.0 mm`) and a warning when it exceeds the bed.
 - Filters: include fluids, include foliage, solidify interiors, fix non-manifold edges.
-- Surface relief: depth Off / 1 texel / 2 texels, an Invert toggle, a live "1 texel = x mm · depth y mm" readout, a warning when a texel is finer than a 0.4 mm nozzle on FDM, and a message when the carve budget skipped relief. Disabled with an explanation when the build carries no `relief` data (older mod).
+- Surface relief: depth Off / 1 / 2 / 3 texels (a depth map: darker areas carve deeper), an Invert toggle, a live "1 texel = x mm · depth y mm" readout, a warning when a texel is finer than a 0.4 mm nozzle on FDM, and a message when the carve budget skipped relief. Disabled with an explanation when the build carries no `relief` data (older mod).
 
 ### Center — Viewport (`Viewport3D.tsx`)
 - Build plate: 256×256 mm (Bambu) or 220×120 mm (resin vat) grid.

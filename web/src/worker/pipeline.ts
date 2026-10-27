@@ -27,6 +27,8 @@ export interface PipelineResult {
   reliefCarved: number | null;
   /** Set when relief was requested but the build is too large for the carve budget (docs: relief.ts). */
   reliefSkipped: { wanted: number; limit: number } | null;
+  /** Depth actually applied (lower than requested when the budget forced it), or null when relief is off or skipped. */
+  reliefUsedDepth: number | null;
   /** Wall-clock milliseconds per stage. */
   timings: Record<Stage, number>;
 }
@@ -75,5 +77,6 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
   const raw = step("mesh", () => extractMeshes(grid));
   const meshes = step("heal", () => raw.map(healTJunctions));
   const reports = step("validate", () => validateAll(meshes));
-  return { quantization, paletteToBucket, meshes, reports, repair, reliefCarved: relief && !relief.skipped ? relief.removed : null, reliefSkipped: relief?.skipped ?? null, timings };
+  return { quantization, paletteToBucket, meshes, reports, repair, reliefCarved: relief && !relief.skipped ? relief.removed : null, reliefSkipped: relief?.skipped ?? null,
+    reliefUsedDepth: relief && !relief.skipped ? relief.usedDepth : null, timings };
 }

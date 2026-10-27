@@ -56,13 +56,13 @@ Bucket ids are `1..K` (K ≤ 16). `0` is air. There is **no** special infill id:
 
 ## 2b. Surface relief (`relief.ts`, optional)
 
-`MeshingOptions.reliefDepth` (0 = off, 1, 2) and `reliefInvert`. Runs after the grid is built and before cavity fill and repair, so both still see and guarantee the final geometry.
+`MeshingOptions.reliefDepth` (0 = off, 1, 2 or 3 texels) and `reliefInvert`. Runs after the grid is built and before cavity fill and repair, so both still see and guarantee the final geometry.
 
 - Applies to palette entries that carry `relief`, are a full cube, are included by the filters, and map to a bucket.
-- Per face map: mean and standard deviation of the 256 texels. If sigma < 3 the face is flat and nothing is carved. Otherwise a texel more than 1.0 sigma darker than the mean (lighter, with `reliefInvert`) is carved 1 deep, and with depth 2 more than 1.5 sigma carves 2 deep.
+- **Tonal depth map.** For each 16×16 face map, depth is scaled continuously with brightness: the darkest texels are carved `reliefDepth` deep, the lightest not at all, and everything between gets the proportional whole number of sub-voxels (`round(t × depth)`). `reliefInvert` flips it. The brightness range runs between the face's 10th and 90th percentile, or its full min..max when those are closer than `MIN_RANGE` (32), so a single dark pixel still counts; a face narrower than that is flat and carves nothing. (An earlier version carved only the darkest ~16% texels as on/off pits. It looked nothing like the texture on a real build; the continuous mapping reproduces log rings and bark.)
 - A texel is carved only if the cell just outside it is air, so faces shared with solid neighbours stay whole. Decisions use the pre-carve grid, so the result does not depend on iteration order.
 - Carving only turns solid cells of the block into air. Dimensions, bed fit and block-to-block contacts never change.
-- **Budget:** if the plan would carve more than `MAX_CARVED_CELLS` (600,000) cells, relief is skipped entirely (never partial) and the result says so (`reliefSkipped`). Each carved texel adds roughly 5 triangles.
+- **Budget:** each carved texel adds roughly 5 triangles. If the requested depth would carve more than `MAX_CARVED_CELLS` (600,000) cells, relief steps down to a shallower depth until it fits and reports the depth used (`reliefUsedDepth`). If even depth 1 does not fit it is skipped entirely (never partial) and the result says so (`reliefSkipped`).
 - One texel is `scaleMmPerBlock / 16` mm wide and deep (0.25 mm at 4 mm per block), so FDM needs about 6.4 mm per block before relief can exceed a 0.4 mm nozzle.
 
 ## 3. Exterior flood-fill (FDM interior solidification) — `fillInteriorCavities`

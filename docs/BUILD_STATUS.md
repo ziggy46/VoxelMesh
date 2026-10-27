@@ -126,3 +126,11 @@ Feature request after G5: make a single-colour print look textured by carving bl
 - **Still unverified in game:** the new jar's whole chat flow. 43 Java tests pass; the pieces were run for real outside Minecraft, but not inside a game.
 - **Not fixed (server side):** the relay itself still never answers an `Upgrade: h2c` request when run under Vite. Only the mod was changed. Any other HTTP/2-upgrading client would hit the same hang.
 
+### Relief redesign after real-build feedback (2026-10-27)
+- **Feedback:** on a real in-game house (oak logs, glass, door) the preview "doesn't even look close" to the game.
+- **Checked first:** the mod's sampled relief maps match the true textures from the Minecraft jar with correlation 1.000 on every face of every log variant, including the rotated logs (the sampling and orientation are exact). Block colour (`#6D5533` oak log) is also right.
+- **Cause:** my relief carved only the darkest ~16% of texels as on/off pits, which threw away almost all tonal information; log-end rings and glass frames vanished.
+- **Fix:** relief is now a real tonal depth map (`reliefLevels`): carve depth scales continuously with darkness, depth 1 to 3 texels, with automatic step-down to a shallower depth when the 600k-cell budget would be exceeded (`reliefUsedDepth`). On the real house the rings, bark grain and glass frames now show. 275 web tests pass (275, or 273 plus 2 CI-skipped).
+- **Cost on the real house:** 17k / 46k / 63k texels carved at depth 1 / 2 / 3, 59k / 90k / 120k triangles, about 0.26 s. The synthetic castle fits only depth 1 (390k texels, 1.4 M triangles, 4.3 s) and steps down from 2 and 3.
+- **Not changed, and still different from the game:** the model is one flat colour per filament slot (no per-face colours, so bark vs ring tone is shape only); glass is a solid light-blue block, not transparent; the preview has no texture colours. Those are design limits, not bugs.
+
