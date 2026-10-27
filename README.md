@@ -54,4 +54,4 @@ cd mod && ./gradlew build                # compile, JUnit, remapped jar
 
 Working end to end: capture in game, preview, FDM and Resin meshing, validated `.3MF` and `.STL` export. The sample castle imports into Bambu Studio. Not yet checked in other slicers. Known limits: Fabric 1.21.1 only; surface relief covers full-cube blocks only and is skipped on very large builds; very large selections (64³ blocks and up) have no reduced-quality preview path yet.
 
-Minecraft is a trademark of Mojang AB. This project is not affiliated with or endorsed by Mojang or Microsoft, and contains no Minecraft code or assets.
+Licensed under the [MIT License](LICENSE). Minecraft is a trademark of Mojang AB. This project is not affiliated with or endorsed by Mojang or Microsoft, and contains no Minecraft code or assets.
