@@ -13,8 +13,11 @@ export async function bootstrap(): Promise<void> {
       return;
     }
     try {
-      const res = await fetch(`/api/builds/${id}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(res.status === 404 ? "That build has expired or was never sent. Re-run /vm export in Minecraft." : `The relay answered ${res.status}.`);
+      const res = await fetch(`${import.meta.env.BASE_URL}api/builds/${id}`, { cache: "no-store" });
+      const noRelay = "That build is not on this server. It may have expired, or the hosted site has no relay: run the app locally, or drop the saved .vxm.json.gz file here.";
+      // A static host answers unknown paths with its HTML page, not 404, so check the content type too.
+      if (res.ok && (res.headers.get("content-type") ?? "").includes("text/html")) throw new Error(noRelay);
+      if (!res.ok) throw new Error(res.status === 404 ? noRelay : `The relay answered ${res.status}.`);
       await loadBytes("Minecraft export", new Uint8Array(await res.arrayBuffer()));
     } catch (e) {
       usePrintStore.setState({ loadError: e instanceof Error ? e.message : String(e) });

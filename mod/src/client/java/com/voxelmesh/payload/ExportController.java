@@ -2,10 +2,12 @@ package com.voxelmesh.payload;
 
 import com.voxelmesh.Chat;
 import com.voxelmesh.ConfigStore;
+import com.voxelmesh.core.LinkBuilder;
 import com.voxelmesh.core.Limits;
 import com.voxelmesh.core.PayloadWriter;
 import com.voxelmesh.core.RelayConfig;
 import com.voxelmesh.core.Selection;
+import com.voxelmesh.VoxelMeshClientMod;
 import com.voxelmesh.net.CompanionUploader;
 import com.voxelmesh.selection.SelectionManager;
 import java.io.IOException;
@@ -144,8 +146,7 @@ public final class ExportController {
         RelayConfig cfg = ConfigStore.get();
         CompanionUploader.post(cfg.relayUri(), out.gzipped()).whenComplete((id, err) -> client.execute(() -> {
             if (err != null) {
-                Chat.warn(client, "Could not reach the VoxelMesh app (" + rootMessage(err) + "). Start it, then drag "
-                    + out.file().getFileName() + " onto it.");
+                fallBackToSite(client, out, rootMessage(err));
                 return;
             }
             try {
@@ -155,6 +156,33 @@ public final class ExportController {
                 Chat.warn(client, "Uploaded, but could not open the browser: " + e.getMessage());
             }
         }));
+    }
+
+    /**
+     * The local app is not running. If the build fits in a link, open the hosted site with the build in the URL fragment (the
+     * browser never sends a fragment to any server, so nothing is uploaded). Otherwise leave the saved file and say how to use it.
+     */
+    private static void fallBackToSite(MinecraftClient client, Output out, String relayError) {
+        RelayConfig cfg = ConfigStore.get();
+        String file = out.file().getFileName().toString();
+        try {
+            var site = cfg.siteUri();
+            if (site.isPresent()) {
+                var link = LinkBuilder.build(site.get(), out.gzipped(), cfg.maxLinkChars);
+                if (link.isPresent()) {
+                    Util.getOperatingSystem().open(link.get());
+                    Chat.info(client, "The local app is not running, so I opened " + site.get().getHost()
+                        + ". Your build travels inside the link and is not uploaded anywhere.");
+                    return;
+                }
+                Chat.warn(client, "The local app is not running (" + relayError + ") and this build is too big for a link. Start the app, "
+                    + "or open " + site.get() + " and drag " + file + " onto it.");
+                return;
+            }
+        } catch (RuntimeException e) {
+            VoxelMeshClientMod.LOGGER.warn("Hosted-site fallback failed: {}", e.toString());
+        }
+        Chat.warn(client, "Could not reach the VoxelMesh app (" + relayError + "). Start it, then drag " + file + " onto it.");
     }
 
     private static String rootMessage(Throwable t) {

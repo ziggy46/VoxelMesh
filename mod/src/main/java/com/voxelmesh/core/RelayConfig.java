@@ -9,10 +9,18 @@ import java.util.Locale;
 public final class RelayConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     public static final String DEFAULT_RELAY = "http://127.0.0.1:5173/api/builds";
+    public static final String DEFAULT_SITE = "https://ziggy46.github.io/VoxelMesh/";
 
     public String relayUrl = DEFAULT_RELAY;
     /** Blocks scanned per client tick (docs/02 §3). */
     public int tickSliceBlocks = 20_000;
+    /**
+     * Hosted copy of the web app, used only when the local app is not running and the build is small enough to travel in the
+     * link. Set to "" to disable. The build is never uploaded to it: it rides in the URL fragment.
+     */
+    public String siteUrl = DEFAULT_SITE;
+    /** Longest link the mod will try to open (operating systems cap the browser command line). */
+    public int maxLinkChars = 30_000;
 
     public static RelayConfig fromJson(String json) {
         RelayConfig c = GSON.fromJson(json, RelayConfig.class);
@@ -20,6 +28,9 @@ public final class RelayConfig {
         if (c.relayUrl == null || c.relayUrl.isBlank()) c.relayUrl = DEFAULT_RELAY;
         if (c.tickSliceBlocks < 1_000) c.tickSliceBlocks = 1_000;
         if (c.tickSliceBlocks > 200_000) c.tickSliceBlocks = 200_000;
+        if (c.siteUrl == null) c.siteUrl = DEFAULT_SITE;
+        if (c.maxLinkChars < 2_000) c.maxLinkChars = 2_000;
+        if (c.maxLinkChars > 100_000) c.maxLinkChars = 100_000;
         return c;
     }
 
@@ -42,6 +53,14 @@ public final class RelayConfig {
             throw new IllegalArgumentException("relayUrl must be an http(s) URL: " + relayUrl);
         }
         return u;
+    }
+
+    /** The hosted site, or empty when disabled. Throws IllegalArgumentException when set but not a usable URL. */
+    public java.util.Optional<URI> siteUri() {
+        if (siteUrl == null || siteUrl.isBlank()) return java.util.Optional.empty();
+        URI u = URI.create(siteUrl.trim());
+        LinkBuilder.build(u, new byte[0], Integer.MAX_VALUE); // validates scheme and host
+        return java.util.Optional.of(u);
     }
 
     /** The page to open for a build id: the relay's own origin, never a URL supplied by the response. */

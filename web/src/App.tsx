@@ -23,7 +23,7 @@ export default function App() {
         <span className="text-xs text-muted">{sourceName ?? "No build loaded"}</span>
         <span className="ml-auto text-xs text-muted" aria-live="polite">
           {status === "running" && "Meshing…"}
-          {status === "ready" && `Done in ${(total / 1000).toFixed(1)} s · runs on this machine only`}
+          {status === "ready" && `Done in ${(total / 1000).toFixed(1)} s · processed in your browser, nothing uploaded`}
         </span>
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)_340px]">
