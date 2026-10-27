@@ -8,7 +8,8 @@ import com.voxelmesh.core.PayloadWriter;
 import com.voxelmesh.core.RelayConfig;
 import com.voxelmesh.core.Selection;
 import com.voxelmesh.VoxelMeshClientMod;
-import com.voxelmesh.net.CompanionUploader;
+import com.voxelmesh.core.BrowserOpener;
+import com.voxelmesh.core.RelayClient;
 import com.voxelmesh.selection.SelectionManager;
 import java.io.IOException;
 import java.net.URI;
@@ -20,7 +21,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.ClickEvent;
-import net.minecraft.util.Util;
 
 /** Runs one capture at a time: scan in tick slices, serialise off-thread, save a backup, upload, open the browser. */
 public final class ExportController {
@@ -162,17 +162,15 @@ public final class ExportController {
 
     private static void upload(MinecraftClient client, Output out) {
         RelayConfig cfg = ConfigStore.get();
-        CompanionUploader.post(cfg.relayUri(), out.gzipped()).whenComplete((id, err) -> client.execute(() -> {
+        RelayClient.post(cfg.relayUri(), out.gzipped()).whenComplete((id, err) -> client.execute(() -> {
             if (err != null) {
                 fallBackToSite(client, out, rootMessage(err));
                 return;
             }
             try {
-                URI page = cfg.browserUri(id);
-                Util.getOperatingSystem().open(page);
-                Chat.link(client, "Opened VoxelMesh in your browser. If it did not open:", "Open VoxelMesh", ClickEvent.Action.OPEN_URL, page.toString());
+                openAndReport(client, cfg.browserUri(id), "Opened VoxelMesh in your browser.", "Open VoxelMesh");
             } catch (RuntimeException e) {
-                Chat.warn(client, "Uploaded, but could not open the browser: " + e.getMessage());
+                Chat.warn(client, "Uploaded, but could not build the link: " + e.getMessage());
             }
         }));
     }
@@ -190,11 +188,9 @@ public final class ExportController {
             if (site.isPresent()) {
                 var direct = LinkBuilder.build(site.get(), out.gzipped(), cfg.maxLinkChars);
                 if (direct.isPresent()) {
-                    String url = direct.get().toString();
-                    Util.getOperatingSystem().open(direct.get());
-                    Chat.link(client, "The local app is not running, so I opened " + site.get().getHost()
-                        + " (your build travels inside the link and is not uploaded). If it did not open:",
-                        "Open VoxelMesh", ClickEvent.Action.OPEN_URL, url);
+                    openAndReport(client, direct.get(),
+                        "The local app is not running, so I opened " + site.get().getHost()
+                            + " (your build travels inside the link and is not uploaded).", "Open VoxelMesh");
                     return;
                 }
                 var big = LinkBuilder.build(site.get(), out.gzipped(), cfg.maxClipboardChars);
@@ -213,6 +209,23 @@ public final class ExportController {
             VoxelMeshClientMod.LOGGER.warn("Hosted-site fallback failed: {}", e.toString());
         }
         Chat.warn(client, "Could not reach the VoxelMesh app (" + relayError + "). Start it, then drag " + file + " onto it.");
+    }
+
+    /**
+     * Ask the OS to open `uri`, then say what really happened. The operating system's answer is checked (Minecraft's own
+     * helper drops it), and a clickable button is always printed so a failed launch is never a dead end.
+     */
+    private static void openAndReport(MinecraftClient client, URI uri, String okMessage, String label) {
+        BrowserOpener.openAsync(uri).thenAccept(problem -> client.execute(() -> {
+            String url = uri.toString();
+            if (problem.isEmpty()) {
+                Chat.link(client, okMessage + " If no tab appeared:", label, ClickEvent.Action.OPEN_URL, url);
+            } else {
+                VoxelMeshClientMod.LOGGER.warn("Could not open the browser: {}", problem.get());
+                Chat.link(client, "Your system could not open the browser (" + problem.get() + "). Click here instead:", label,
+                    ClickEvent.Action.OPEN_URL, url);
+            }
+        }));
     }
 
     private static String rootMessage(Throwable t) {

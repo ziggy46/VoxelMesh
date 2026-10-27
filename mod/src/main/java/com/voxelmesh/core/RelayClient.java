@@ -1,4 +1,4 @@
-package com.voxelmesh.net;
+package com.voxelmesh.core;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -11,16 +11,24 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
-/** Posts the gzipped payload to the localhost relay. No telemetry, no other hosts (docs/02 §5). */
-public final class CompanionUploader {
-    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+/** Posts the gzipped payload to the localhost relay. No telemetry, no other hosts (docs/02 §5). Pure JDK + Gson. */
+public final class RelayClient {
+    /**
+     * HTTP/1.1 only. By default the JDK client asks a plain-http server to upgrade to HTTP/2 (an `Upgrade: h2c` header).
+     * Node servers with a websocket listener, which includes the Vite dev server, never answer such a request, so the
+     * upload used to hang until the timeout and nothing happened in game.
+     */
+    private static final HttpClient HTTP = HttpClient.newBuilder()
+        .version(HttpClient.Version.HTTP_1_1)
+        .connectTimeout(Duration.ofSeconds(5))
+        .build();
 
-    private CompanionUploader() {}
+    private RelayClient() {}
 
     /** @return the relay's build id (32 hex chars); the caller builds the browser URL from its own configured origin */
     public static CompletableFuture<String> post(URI relay, byte[] gzipped) {
         HttpRequest req = HttpRequest.newBuilder(relay)
-            .timeout(Duration.ofSeconds(30))
+            .timeout(Duration.ofSeconds(15))
             .header("Content-Type", "application/gzip")
             .POST(HttpRequest.BodyPublishers.ofByteArray(gzipped))
             .build();

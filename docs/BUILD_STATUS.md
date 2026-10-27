@@ -117,3 +117,12 @@ Feature request after G5: make a single-colour print look textured by carving bl
 - **CI lesson:** the first deploy failed only on wall-clock assertions (GitHub runners are 2-3x slower). Performance budgets and the relief timing limits now run locally only (`CI` set skips them); fuzz tests get a longer timeout in CI.
 - **Limits:** GitHub Pages cannot set HTTP headers, so the CSP is a meta tag (weaker than a header: no `frame-ancestors`). The hosted site has no relay, so `?build=` links only work on a local run.
 
+### In-game bug: export did nothing visible (2026-10-27)
+- **Symptom (user, Prism Launcher, Fabric Loader 0.20.1):** after `/vm export` only the saved path was printed; no browser opened, even though the local app was running.
+- **Root cause:** the JDK `HttpClient` asks a plain-`http://` server to upgrade to HTTP/2 (`Upgrade: h2c`). The Vite dev server has a websocket `upgrade` listener, so Node never routes such a request to the relay: it hangs. Reproduced with curl (`--http1.1` POST: 201 in 4 ms; `--http2` POST: no answer in 8 s). The mod waited out its 30 s timeout and then fell back. It was missed in the first in-game test and in unit tests because nothing exercised a real Vite server.
+- **Fix:** `RelayClient` (moved from the client source set into `core`) forces HTTP/1.1; connect timeout 5 s, request timeout 15 s. `RelayClientTest` fails if an `Upgrade` or `HTTP2-Settings` header is ever sent. Verified against the real running dev server: 201 in 138 ms.
+- **Second silent failure removed:** Minecraft's `Util.OperatingSystem.open` discards the OS command's result. New `BrowserOpener` runs the command, checks the exit status, only opens http(s), and the chat now says when the OS refused. Verified on macOS (accepted in 86 ms; `file:` URLs refused).
+- **Also seen in the same log:** `/vm save` prints only the path by design; it now adds `[Open folder]` and `[Open VoxelMesh]` buttons.
+- **Still unverified in game:** the new jar's whole chat flow. 43 Java tests pass; the pieces were run for real outside Minecraft, but not inside a game.
+- **Not fixed (server side):** the relay itself still never answers an `Upgrade: h2c` request when run under Vite. Only the mod was changed. Any other HTTP/2-upgrading client would hit the same hang.
+
