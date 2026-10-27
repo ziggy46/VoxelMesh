@@ -46,6 +46,16 @@ class LinkBuilderTest {
     }
 
     @Test
+    void aTypicalReliefBuildNeedsTheClipboardTierNotTheCommandLine() {
+        // ~60 KB gzip: far over the 30k command-line limit, comfortably inside the clipboard limit.
+        byte[] gz = new byte[60_000];
+        RelayConfig c = RelayConfig.fromJson("{}");
+        assertTrue(LinkBuilder.build(SITE, gz, c.maxLinkChars).isEmpty());
+        URI link = LinkBuilder.build(SITE, gz, c.maxClipboardChars).orElseThrow();
+        assertTrue(link.toString().length() > c.maxLinkChars && link.toString().length() <= c.maxClipboardChars);
+    }
+
+    @Test
     void onlyHttpsOrLoopbackHttp() {
         assertThrows(IllegalArgumentException.class, () -> LinkBuilder.build(URI.create("http://example.com/"), new byte[1], 30_000));
         assertThrows(IllegalArgumentException.class, () -> LinkBuilder.build(URI.create("file:///etc/passwd"), new byte[1], 30_000));
@@ -63,6 +73,9 @@ class LinkBuilderTest {
         assertThrows(IllegalArgumentException.class, () -> RelayConfig.fromJson("{\"siteUrl\":\"http://evil.example/\"}").siteUri());
         assertEquals(2_000, RelayConfig.fromJson("{\"maxLinkChars\":5}").maxLinkChars);
         assertEquals(100_000, RelayConfig.fromJson("{\"maxLinkChars\":99999999}").maxLinkChars);
+        assertEquals(1_000_000, c.maxClipboardChars);
+        assertEquals(2_000_000, RelayConfig.fromJson("{\"maxClipboardChars\":99999999}").maxClipboardChars);
+        assertEquals(50_000, RelayConfig.fromJson("{\"maxLinkChars\":50000,\"maxClipboardChars\":10}").maxClipboardChars, "never below the direct-open limit");
     }
 
     /** The web app must decode what the mod emits (see web/src/__tests__/payload/javaInterop.test.ts). */

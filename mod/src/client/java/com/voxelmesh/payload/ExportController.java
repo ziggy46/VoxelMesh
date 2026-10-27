@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.text.ClickEvent;
 import net.minecraft.util.Util;
 
 /** Runs one capture at a time: scan in tick slices, serialise off-thread, save a backup, upload, open the browser. */
@@ -137,9 +138,26 @@ public final class ExportController {
                     Chat.error(client, "Capture failed: " + rootMessage(err));
                     return;
                 }
-                Chat.info(client, "Saved " + out.file());
-                if (m == Mode.EXPORT) upload(client, out);
+                if (m == Mode.EXPORT) {
+                    Chat.info(client, "Saved " + out.file());
+                    upload(client, out);
+                } else {
+                    announceSaved(client, out);
+                }
             }));
+    }
+
+    /** `/vm save` only writes the file, so say where it is and give one-click ways to use it. */
+    private static void announceSaved(MinecraftClient client, Output out) {
+        java.util.List<Chat.Button> buttons = new java.util.ArrayList<>();
+        buttons.add(new Chat.Button("Open folder", ClickEvent.Action.OPEN_FILE, out.file().getParent().toString()));
+        try {
+            ConfigStore.get().siteUri().ifPresent(site -> buttons.add(new Chat.Button("Open VoxelMesh", ClickEvent.Action.OPEN_URL, site.toString())));
+        } catch (RuntimeException e) {
+            VoxelMeshClientMod.LOGGER.warn("siteUrl is not usable: {}", e.toString());
+        }
+        Chat.links(client, "Saved " + out.file() + ". Drag this file onto the app, or use /vm export to open it directly.",
+            buttons.toArray(new Chat.Button[0]));
     }
 
     private static void upload(MinecraftClient client, Output out) {
@@ -150,8 +168,9 @@ public final class ExportController {
                 return;
             }
             try {
-                Util.getOperatingSystem().open(cfg.browserUri(id));
-                Chat.info(client, "Opened VoxelMesh in your browser.");
+                URI page = cfg.browserUri(id);
+                Util.getOperatingSystem().open(page);
+                Chat.link(client, "Opened VoxelMesh in your browser. If it did not open:", "Open VoxelMesh", ClickEvent.Action.OPEN_URL, page.toString());
             } catch (RuntimeException e) {
                 Chat.warn(client, "Uploaded, but could not open the browser: " + e.getMessage());
             }
@@ -159,8 +178,9 @@ public final class ExportController {
     }
 
     /**
-     * The local app is not running. If the build fits in a link, open the hosted site with the build in the URL fragment (the
-     * browser never sends a fragment to any server, so nothing is uploaded). Otherwise leave the saved file and say how to use it.
+     * The local app is not running. The hosted site takes the build in the URL fragment, which no browser sends to a server, so
+     * nothing is uploaded. Three tiers by size: open it directly; else copy the link for the player to paste (no command-line
+     * limit applies); else leave the saved file and say how to use it. Every tier prints something clickable or actionable.
      */
     private static void fallBackToSite(MinecraftClient client, Output out, String relayError) {
         RelayConfig cfg = ConfigStore.get();
@@ -168,11 +188,21 @@ public final class ExportController {
         try {
             var site = cfg.siteUri();
             if (site.isPresent()) {
-                var link = LinkBuilder.build(site.get(), out.gzipped(), cfg.maxLinkChars);
-                if (link.isPresent()) {
-                    Util.getOperatingSystem().open(link.get());
-                    Chat.info(client, "The local app is not running, so I opened " + site.get().getHost()
-                        + ". Your build travels inside the link and is not uploaded anywhere.");
+                var direct = LinkBuilder.build(site.get(), out.gzipped(), cfg.maxLinkChars);
+                if (direct.isPresent()) {
+                    String url = direct.get().toString();
+                    Util.getOperatingSystem().open(direct.get());
+                    Chat.link(client, "The local app is not running, so I opened " + site.get().getHost()
+                        + " (your build travels inside the link and is not uploaded). If it did not open:",
+                        "Open VoxelMesh", ClickEvent.Action.OPEN_URL, url);
+                    return;
+                }
+                var big = LinkBuilder.build(site.get(), out.gzipped(), cfg.maxClipboardChars);
+                if (big.isPresent()) {
+                    String url = big.get().toString();
+                    client.keyboard.setClipboard(url);
+                    Chat.link(client, "The local app is not running and this build is too big to open as a link directly. I copied the link to your clipboard: paste it into your browser's address bar.",
+                        "Copy link again", ClickEvent.Action.COPY_TO_CLIPBOARD, url);
                     return;
                 }
                 Chat.warn(client, "The local app is not running (" + relayError + ") and this build is too big for a link. Start the app, "

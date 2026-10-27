@@ -19,8 +19,13 @@ public final class RelayConfig {
      * link. Set to "" to disable. The build is never uploaded to it: it rides in the URL fragment.
      */
     public String siteUrl = DEFAULT_SITE;
-    /** Longest link the mod will try to open (operating systems cap the browser command line). */
+    /** Longest link the mod will open directly (operating systems cap the browser command line at about 32k characters). */
     public int maxLinkChars = 30_000;
+    /**
+     * Longer links are copied to the clipboard instead, for you to paste into a browser (browsers accept about 2 MB in the
+     * address bar, and no command line is involved).
+     */
+    public int maxClipboardChars = 1_000_000;
 
     public static RelayConfig fromJson(String json) {
         RelayConfig c = GSON.fromJson(json, RelayConfig.class);
@@ -31,6 +36,8 @@ public final class RelayConfig {
         if (c.siteUrl == null) c.siteUrl = DEFAULT_SITE;
         if (c.maxLinkChars < 2_000) c.maxLinkChars = 2_000;
         if (c.maxLinkChars > 100_000) c.maxLinkChars = 100_000;
+        if (c.maxClipboardChars < c.maxLinkChars) c.maxClipboardChars = c.maxLinkChars;
+        if (c.maxClipboardChars > 2_000_000) c.maxClipboardChars = 2_000_000;
         return c;
     }
 

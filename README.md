@@ -39,7 +39,9 @@ In game, look at a block and press `[`, look at the opposite corner and press `]
 2. **Local app not running**: if the build is small enough, the mod opens the hosted site with the build inside the URL fragment (`#data=…`). Browsers never send a fragment to a server, so nothing is uploaded; the page decodes it itself.
 3. **Too big for a link**: the build is saved to `.minecraft/voxelmesh/`. Drag the file onto the app.
 
-Config lives in `config/voxelmesh.json` (`relayUrl`, `siteUrl`, `maxLinkChars`, `tickSliceBlocks`). Set `siteUrl` to `""` to disable the hosted fallback.
+`/vm save [name]` only writes the file (chat gives you buttons to open the folder and the app). Browsers that block opening a link are covered by a clickable button in chat, and a build too big to open directly has its link copied to your clipboard instead.
+
+Config lives in `config/voxelmesh.json` (`relayUrl`, `siteUrl`, `maxLinkChars`, `maxClipboardChars`, `tickSliceBlocks`). Set `siteUrl` to `""` to disable the hosted fallback.
 
 ## Develop
 
