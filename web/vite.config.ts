@@ -37,6 +37,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
-    testTimeout: 30000,
+    // Shared CI runners are 2-3x slower than a desktop, so allow the heavy fuzz tests longer there.
+    testTimeout: process.env.CI ? 240_000 : 30_000,
   },
 });
