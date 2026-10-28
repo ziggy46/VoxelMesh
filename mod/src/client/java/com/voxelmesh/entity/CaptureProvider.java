@@ -46,10 +46,26 @@ final class CaptureProvider implements VertexConsumerProvider {
         VertexFormat.DrawMode mode = layer.getDrawMode();
         int per = mode == VertexFormat.DrawMode.QUADS ? 4 : mode == VertexFormat.DrawMode.TRIANGLES ? 3 : 0;
         if (per == 0) return null;
-        String name = layer.toString().toLowerCase();
+        String name = nameOf(layer);
         for (String s : SKIP) if (name.contains(s)) return null;
+        // The glint texture is shared by several differently named layers.
+        if (EntityTextures.textureId(layer).map(id -> id.getPath().contains("glint")).orElse(false)) return null;
         EntityTextures.Resolved tex = textures.resolve(layer);
         return tex == null ? null : new Recorder(per, tex.tex(), tris);
+    }
+
+    /** The layer's own name ("entity_cutout", "eyes", ...), from `RenderType[name:CompositeState[...]]`; never its texture path. */
+    static String nameOf(RenderLayer layer) {
+        String s = layer.toString();
+        int open = s.indexOf('['), colon = open < 0 ? -1 : s.indexOf(':', open);
+        return (open >= 0 && colon > open ? s.substring(open + 1, colon) : s).toLowerCase();
+    }
+
+    /** For the log: which layers were used or refused. */
+    String layerSummary() {
+        StringBuilder b = new StringBuilder();
+        perLayer.forEach((l, r) -> b.append(nameOf(l)).append(r == null ? "(skipped) " : " "));
+        return b.toString().trim();
     }
 
     /** The recorded triangles; call once the renderer is finished. */

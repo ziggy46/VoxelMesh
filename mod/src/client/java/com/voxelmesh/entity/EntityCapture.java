@@ -90,7 +90,9 @@ public final class EntityCapture {
             CaptureProvider provider = new CaptureProvider(textures);
             // Rendering at (position - origin) puts every recorded vertex in selection-relative blocks.
             dispatcher.render(e, e.getX() - sel.x1, e.getY() - sel.y1, e.getZ() - sel.z1, e.getYaw(), 1.0f, new MatrixStack(), provider, 0xF000F0);
-            EntityVoxelizer.Grid grid = EntityVoxelizer.voxelize(provider.finish(), MAX_CELLS_PER_ENTITY);
+            java.util.List<EntityVoxelizer.Tri> tris = provider.finish();
+            VoxelMeshClientMod.LOGGER.debug("entity {}: {} triangles from layers {}", Registries.ENTITY_TYPE.getId(e.getType()), tris.size(), provider.layerSummary());
+            EntityVoxelizer.Grid grid = EntityVoxelizer.voxelize(tris, MAX_CELLS_PER_ENTITY);
             if (grid == null) return null;
             return BoxMerger.merge(Registries.ENTITY_TYPE.getId(e.getType()).toString(), grid, sel.sizeX() * 16, sel.sizeY() * 16, sel.sizeZ() * 16);
         } catch (RuntimeException | LinkageError ex) {
