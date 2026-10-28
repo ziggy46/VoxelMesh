@@ -7,6 +7,16 @@ export type SubVoxelBox = [
 
 export type BlockCategory = "solid" | "partial" | "thin" | "foliage" | "fluid" | "air";
 
+/**
+ * The shape and colours the game actually draws for a block state, for blocks whose hitbox is not what you see (fences,
+ * doors, anvils). Boxes are [x0, y0, z0, x1, y1, z1, colourIndex]: block-local sub-voxels, 0..16, MC axes, half-open, with an
+ * index into `palette` ("#RRGGBB").
+ */
+export interface BlockModelData {
+  palette: string[];
+  boxes: Array<[number, number, number, number, number, number, number]>;
+}
+
 export interface PaletteEntry {
   id: string; // "minecraft:oak_stairs[facing=north,half=bottom]"
   name: string; // "Oak Stairs"
@@ -22,6 +32,8 @@ export interface PaletteEntry {
   tags?: string[];
   /** Optional, full-cube blocks only: six "#RRGGBB" face colours in the order DOWN, UP, NORTH, SOUTH, WEST, EAST. */
   faces?: string[];
+  /** Optional: the drawn shape and colours (docs/01 §3d). `boxes` stays the hitbox. */
+  model?: BlockModelData;
 }
 
 /**

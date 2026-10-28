@@ -1,8 +1,11 @@
 package com.voxelmesh.util;
 
+import com.voxelmesh.core.BlockModel;
+import com.voxelmesh.core.BlockModelBuilder;
 import com.voxelmesh.core.BoxQuantizer;
 import com.voxelmesh.core.Category;
 import com.voxelmesh.core.ColorMath;
+import com.voxelmesh.core.EntityVoxelizer;
 import com.voxelmesh.core.PaletteEntry;
 import com.voxelmesh.core.ReliefSampler;
 import com.voxelmesh.mixin.SpriteContentsAccessor;
@@ -52,6 +55,10 @@ public final class BlockGeometryExtractor {
     private static final TagKey<Block> GLASS_BLOCKS = TagKey.of(RegistryKeys.BLOCK, Identifier.of("c", "glass_blocks"));
     private static final TagKey<Block> GLASS_PANES = TagKey.of(RegistryKeys.BLOCK, Identifier.of("c", "glass_panes"));
 
+    private record ModelKey(BlockState state, int tint) {}
+
+    private final Map<ModelKey, java.util.Optional<BlockModel>> models = new HashMap<>();
+    private final Map<Sprite, int[]> spriteArgb = new java.util.IdentityHashMap<>();
     private final Map<BlockState, StateInfo> cache = new HashMap<>();
     private final Set<BlockState> invisible = new HashSet<>();
     private final MinecraftClient client = MinecraftClient.getInstance();
@@ -92,6 +99,72 @@ public final class BlockGeometryExtractor {
         int[] faceRgb = new int[ReliefSampler.FACES];
         int tintMask = category == Category.SOLID ? sampleFaceColors(state, faceRgb) : -1;
         return new StateInfo(category, boxes, baseColor(state, world, pos), relief, tagsFor(state), tintMask < 0 ? null : faceRgb, Math.max(tintMask, 0));
+    }
+
+    /**
+     * The shape and colours the game actually draws for this state, voxelized from its baked model (docs/02 §4.2f), or null
+     * when the hitbox already is the shape (full cubes, fluids) or nothing could be read (block-entity models such as chests,
+     * which have no baked quads). `tint` is the biome tint at the position (-1 for none) and is applied to tinted quads.
+     */
+    public BlockModel modelFor(BlockState state, StateInfo info, int tint) {
+        if (info.category() == Category.FLUID) return null;
+        return models.computeIfAbsent(new ModelKey(state, tint), k -> java.util.Optional.ofNullable(captureModel(state, info, tint))).orElse(null);
+    }
+
+    private static boolean isFullCube(List<int[]> boxes) {
+        return boxes.size() == 1 && java.util.Arrays.equals(boxes.get(0), new int[] {0, 0, 0, 16, 16, 16});
+    }
+
+    private BlockModel captureModel(BlockState state, StateInfo info, int tint) {
+        try {
+            BakedModel model = client.getBlockRenderManager().getModels().getModel(state);
+            List<EntityVoxelizer.Tri> tris = new ArrayList<>();
+            Direction[] sides = new Direction[7];
+            System.arraycopy(Direction.values(), 0, sides, 1, 6); // index 0 stays null: quads with no cull face
+            for (Direction side : sides) {
+                for (BakedQuad quad : model.getQuads(state, side, Random.create(42L))) addQuad(tris, quad, tint);
+            }
+            if (tris.isEmpty()) return null;
+            BlockModel built = BlockModelBuilder.build(tris, info.boxes());
+            // A full-cube hitbox whose model really is a cube needs nothing more (face colours and relief cover it); a model
+            // clearly smaller than the hitbox (a sculk shrieker) is the real shape.
+            if (built != null && isFullCube(info.boxes()) && built.cells() >= 0.9 * 4096) return null;
+            return built;
+        } catch (RuntimeException | LinkageError e) {
+            return null; // fall back to the hitbox
+        }
+    }
+
+    private void addQuad(List<EntityVoxelizer.Tri> out, BakedQuad quad, int tint) {
+        int[] v = quad.getVertexData();
+        Sprite sprite = quad.getSprite();
+        float du = sprite.getMaxU() - sprite.getMinU(), dv = sprite.getMaxV() - sprite.getMinV();
+        float[] p = new float[12], uv = new float[8];
+        for (int i = 0; i < 4; i++) {
+            int o = i * 8; // x,y,z, colour, u, v, light, normal
+            p[3 * i] = Float.intBitsToFloat(v[o]) * 16;
+            p[3 * i + 1] = Float.intBitsToFloat(v[o + 1]) * 16;
+            p[3 * i + 2] = Float.intBitsToFloat(v[o + 2]) * 16;
+            uv[2 * i] = (Float.intBitsToFloat(v[o + 4]) - sprite.getMinU()) / du;
+            uv[2 * i + 1] = (Float.intBitsToFloat(v[o + 5]) - sprite.getMinV()) / dv;
+        }
+        int[] argb = spriteArgb.computeIfAbsent(sprite, s -> {
+            Pixels px = pixelsOf(s);
+            int[] a = new int[px.abgr().length];
+            for (int i = 0; i < a.length; i++) {
+                int abgr = px.abgr()[i];
+                a[i] = (abgr & 0xFF00FF00) | (abgr >> 16 & 0xFF) | (abgr & 0xFF) << 16;
+            }
+            return a;
+        });
+        int w = sprite.getContents().getWidth(), h = sprite.getContents().getHeight();
+        EntityVoxelizer.Texture tex = (u, vv) -> argb[Math.max(0, Math.min(w - 1, (int) Math.floor(u * w))) + Math.max(0, Math.min(h - 1, (int) Math.floor(vv * h))) * w];
+        int rgb = quad.getColorIndex() == 0 && tint != -1 ? tint & 0xFFFFFF : 0xFFFFFF;
+        net.minecraft.util.math.Vec3i n = quad.getFace().getVector();
+        float[] normal = {n.getX(), n.getY(), n.getZ()};
+        int[] col = {rgb, rgb, rgb};
+        out.add(new EntityVoxelizer.Tri(new float[] {p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]}, new float[] {uv[0], uv[1], uv[2], uv[3], uv[4], uv[5]}, col, normal, tex));
+        out.add(new EntityVoxelizer.Tri(new float[] {p[0], p[1], p[2], p[6], p[7], p[8], p[9], p[10], p[11]}, new float[] {uv[0], uv[1], uv[4], uv[5], uv[6], uv[7]}, col, normal, tex));
     }
 
     /** Labels the web app can filter on: leaves (solid cubes full of holes) and glass (windows). */

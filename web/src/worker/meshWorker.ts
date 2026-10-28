@@ -29,7 +29,7 @@ function runOne(req: RunRequest): void {
         type: "result", seq: req.seq, meshes: r.meshes, buckets: r.quantization.buckets, paletteToBucket: r.paletteToBucket,
         reports: r.reports, repair: r.repair, reliefCarved: r.reliefCarved, reliefSkipped: r.reliefSkipped, reliefUsedDepth: r.reliefUsedDepth,
         faceBuckets: r.faceBuckets, faceCells: r.faceCells, facesSkipped: r.facesSkipped,
-        entityBuckets: r.entityBuckets, entityCells: r.entityCells, entitiesSkipped: r.entitiesSkipped, timings: r.timings,
+        modelBuckets: r.modelBuckets, modelBlocks: r.modelBlocks, entityBuckets: r.entityBuckets, entityCells: r.entityCells, entitiesSkipped: r.entitiesSkipped, timings: r.timings,
       },
       transfer,
     );

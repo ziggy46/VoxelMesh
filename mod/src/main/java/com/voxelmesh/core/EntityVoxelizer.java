@@ -43,10 +43,30 @@ public final class EntityVoxelizer {
     /** How far samples are pulled inside, in cells; larger than float noise, far smaller than a cell. */
     private static final double NUDGE = 0.005;
 
+    /** How the empty space inside the shell becomes solid. */
+    public enum Fill {
+        /** Whatever the outside cannot reach (entities: closed models). */
+        FLOOD,
+        /**
+         * Cells walled in along at least two axes and allowed by the mask. For block models, whose cuboids often omit hidden
+         * faces: a box missing one face is still enclosed along two axes, a gap between fence rails is enclosed along one.
+         */
+        ENCLOSED
+    }
+
+    /** Which cells may be filled in {@link Fill#ENCLOSED} mode (cell coordinates, same space as the triangles). */
+    public interface Mask {
+        boolean allows(int x, int y, int z);
+    }
+
     private EntityVoxelizer() {}
 
     /** @return the cells, or null when nothing was drawn or the bounding space would exceed `maxCells` */
     public static Grid voxelize(List<Tri> tris, long maxCells) {
+        return voxelize(tris, maxCells, Fill.FLOOD, null);
+    }
+
+    public static Grid voxelize(List<Tri> tris, long maxCells, Fill fill, Mask mask) {
         if (tris.isEmpty()) return null;
         double minX = Double.MAX_VALUE, minY = minX, minZ = minX, maxX = -minX, maxY = maxX, maxZ = maxX;
         for (Tri t : tris)
@@ -65,7 +85,8 @@ public final class EntityVoxelizer {
         boolean any = false;
         for (Tri t : tris) any |= sample(t, rgb, ox, oy, oz, nx, ny, nz);
         if (!any) return null;
-        fillInterior(rgb, nx, ny, nz);
+        if (fill == Fill.FLOOD) fillInterior(rgb, nx, ny, nz);
+        else fillEnclosed(rgb, ox, oy, oz, nx, ny, nz, mask);
         return new Grid(ox, oy, oz, nx, ny, nz, rgb);
     }
 
@@ -118,6 +139,39 @@ public final class EntityVoxelizer {
 
     private static double dist(double[] a, double[] b) {
         return Math.sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+    }
+
+    /** Fill cells that have shell on both sides along at least two axes (and that the mask allows), from the nearest shell cell. */
+    private static void fillEnclosed(int[] rgb, int ox, int oy, int oz, int nx, int ny, int nz, Mask mask) {
+        int total = nx * ny * nz;
+        int[][] lo = new int[3][total], hi = new int[3][total]; // nearest shell cell index at or before / at or after, per axis (-1 = none)
+        int[] stride = {1, nx, nx * ny}, size = {nx, ny, nz};
+        for (int axis = 0; axis < 3; axis++) {
+            int s = stride[axis], n = size[axis];
+            for (int i = 0; i < total; i++) {
+                int pos = (i / s) % n;
+                lo[axis][i] = rgb[i] != 0 ? i : pos > 0 ? lo[axis][i - s] : -1;
+            }
+            for (int i = total - 1; i >= 0; i--) {
+                int pos = (i / s) % n;
+                hi[axis][i] = rgb[i] != 0 ? i : pos < n - 1 ? hi[axis][i + s] : -1;
+            }
+        }
+        int[] fillFrom = new int[total];
+        java.util.Arrays.fill(fillFrom, -1);
+        for (int i = 0; i < total; i++) {
+            if (rgb[i] != 0) continue;
+            int axes = 0, from = -1;
+            for (int axis = 0; axis < 3; axis++)
+                if (lo[axis][i] >= 0 && hi[axis][i] >= 0) {
+                    axes++;
+                    if (from < 0) from = lo[axis][i];
+                }
+            if (axes < 2) continue;
+            if (mask != null && !mask.allows(ox + i % nx, oy + i / nx % ny, oz + i / (nx * ny))) continue;
+            fillFrom[i] = from;
+        }
+        for (int i = 0; i < total; i++) if (fillFrom[i] >= 0) rgb[i] = rgb[fillFrom[i]];
     }
 
     /** Mark everything the outside cannot reach as interior and give it the colour of the nearest shell cell. */

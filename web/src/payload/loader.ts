@@ -123,6 +123,20 @@ function validatePaletteEntry(e: unknown, i: number): PaletteEntry {
       fail(`palette[${i}].faces must be six #RRGGBB colours`);
     }
   }
+  if (e.model !== undefined) {
+    const m = e.model;
+    if (!isRecord(m) || !Array.isArray(m.palette) || m.palette.length === 0 || m.palette.length > 256 ||
+        !m.palette.every((c: unknown) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c)) ||
+        !Array.isArray(m.boxes) || m.boxes.length > 4096) {
+      fail(`palette[${i}].model must have 1 to 256 #RRGGBB colours and at most 4096 boxes`);
+    }
+    (m.boxes as unknown[]).forEach((b, j) => {
+      if (!Array.isArray(b) || b.length !== 7 || !b.every((n: unknown) => Number.isInteger(n))) fail(`palette[${i}].model.boxes[${j}] must be seven integers`);
+      const [x0, y0, z0, x1, y1, z1, ci] = b as number[];
+      if (x0! < 0 || y0! < 0 || z0! < 0 || x1! > 16 || y1! > 16 || z1! > 16 || x1! <= x0! || y1! <= y0! || z1! <= z0!) fail(`palette[${i}].model.boxes[${j}] is empty or outside the block`);
+      if (ci! < 0 || ci! >= (m.palette as unknown[]).length) fail(`palette[${i}].model.boxes[${j}] has a colour index outside the palette`);
+    });
+  }
   return e as unknown as PaletteEntry;
 }
 

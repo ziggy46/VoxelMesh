@@ -99,6 +99,20 @@ public final class PayloadWriter {
                 for (String f : e.faces()) faces.add(f);
                 o.add("faces", faces);
             }
+            if (e.model() != null) {
+                JsonObject m = new JsonObject();
+                JsonArray colors = new JsonArray();
+                for (String c : e.model().palette()) colors.add(c);
+                m.add("palette", colors);
+                JsonArray mb = new JsonArray();
+                for (int[] b : e.model().boxes()) {
+                    JsonArray a = new JsonArray();
+                    for (int v : b) a.add(v);
+                    mb.add(a);
+                }
+                m.add("boxes", mb);
+                o.add("model", m);
+            }
             if (e.relief() != null) {
                 if (e.relief().length != ReliefSampler.TOTAL_BYTES) throw new IllegalArgumentException("relief must be " + ReliefSampler.TOTAL_BYTES + " bytes");
                 o.addProperty("relief", Base64.getEncoder().encodeToString(e.relief()));

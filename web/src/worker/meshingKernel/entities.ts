@@ -58,7 +58,7 @@ export interface EntityResult {
 }
 
 /** Minimum wall in cells for these options: the same rule the block dilation uses (docs/03 §2). 0 = no thickening. */
-function minWallCells(o: MeshingOptions): number {
+export function minWallCells(o: MeshingOptions): number {
   if (!(o.minNozzleWallMm > 0) || !(o.scaleMmPerBlock > 0)) return 0;
   return Math.min(16, Math.ceil((o.minNozzleWallMm / o.scaleMmPerBlock) * 16 - 1e-9));
 }
@@ -130,7 +130,7 @@ export function applyEntities(grid: SparseGrid, p: VoxelPayload, bucketOf: (hex:
  * run end they grow from. Each run grows half to each side; a side that is blocked (a wall, the edge of the grid, another part)
  * hands its share to the other side. `origin` and `dims` locate the local array in MC lattice coordinates.
  */
-function widen(cells: Uint16Array, origin: [number, number, number], dims: [number, number, number], axis: 0 | 2, min: number, free: (x: number, y: number, z: number) => boolean): void {
+export function widen(cells: Uint16Array, origin: [number, number, number], dims: [number, number, number], axis: 0 | 2, min: number, free: (x: number, y: number, z: number) => boolean): void {
   const [W, H, D] = dims;
   const [rx, ry, rz] = origin;
   const len = axis === 0 ? W : D;

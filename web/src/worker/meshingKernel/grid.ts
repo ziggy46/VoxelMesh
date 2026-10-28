@@ -12,13 +12,15 @@ interface Prepared {
   boxes: SubVoxelBox[];
   /** True when one box covers the whole block, so the chunk is stored as a number. */
   full: boolean;
+  /** Exact-shape chunk of slot numbers; replaces the boxes when present. */
+  template?: Uint16Array;
 }
 
 /**
  * Build the block-chunked grid. MC block (x,y,z) lands at slicer block (x, sizeZ-1-z, y); MC-local box
  * [minX,minY,minZ,maxX,maxY,maxZ) fills slicer-local x[minX,maxX) y[16-maxZ,16-minZ) z[minY,maxY) (docs/01 §1).
  */
-export function buildSparseGrid(p: VoxelPayload, o: MeshingOptions, paletteToBucket: Uint16Array): SparseGrid {
+export function buildSparseGrid(p: VoxelPayload, o: MeshingOptions, paletteToBucket: Uint16Array, templates?: ReadonlyMap<number, Uint16Array>): SparseGrid {
   const [sx, sy, sz] = p.dimensions;
   const Bx = sx, By = sz, Bz = sy;
   const cells: Array<number | Uint16Array> = new Array<number | Uint16Array>(Bx * By * Bz).fill(0);
@@ -27,6 +29,8 @@ export function buildSparseGrid(p: VoxelPayload, o: MeshingOptions, paletteToBuc
     const bucket = paletteToBucket[i] ?? 0;
     if (i === 0 || bucket === 0 || e.category === "air" || e.boxes.length === 0) return null;
     if (!isIncluded(e, o)) return null;
+    const template = templates?.get(i);
+    if (template) return { bucket, boxes: [], full: false, template };
     const boxes = dilateThinFeatures(e.boxes, o).map(
       (b): SubVoxelBox => [b[0], SUB - b[5], b[1], b[3], SUB - b[2], b[4]],
     );
@@ -43,6 +47,10 @@ export function buildSparseGrid(p: VoxelPayload, o: MeshingOptions, paletteToBuc
         const ci = x + (sz - 1 - z) * Bx + y * Bx * By;
         if (prep.full) {
           cells[ci] = prep.bucket;
+          continue;
+        }
+        if (prep.template) {
+          cells[ci] = prep.template.slice();
           continue;
         }
         const chunk = new Uint16Array(CHUNK_CELLS);

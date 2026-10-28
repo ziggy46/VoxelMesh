@@ -7,6 +7,7 @@ import { base64ToBytes, decodeVoxels } from "../../payload/loader";
 import type { MeshingOptions, ReliefDepth, SparseGrid } from "../../types/mesh";
 import { RELIEF_BYTES, type PaletteEntry, type VoxelPayload } from "../../types/voxelPayload";
 import { isIncluded } from "./filters";
+import { modelOf } from "./models";
 import { faceCell, faceNeighbour, faceOutside } from "./faceFrame";
 import { getCell, setCell } from "./gridAccess";
 
@@ -72,7 +73,7 @@ export function applyRelief(grid: SparseGrid, p: VoxelPayload, paletteToBucket: 
 
   const decoded: Array<Uint8Array | null> = p.palette.map((e, i) => {
     if (i === 0 || !e.relief || (paletteToBucket[i] ?? 0) === 0 || e.category === "air" || !isFullCube(e)) return null;
-    if (!isIncluded(e, o)) return null;
+    if (!isIncluded(e, o) || modelOf(e, o)) return null; // a drawn model replaces the cube
     const bytes = base64ToBytes(e.relief);
     return bytes.length === RELIEF_BYTES ? bytes : null;
   });

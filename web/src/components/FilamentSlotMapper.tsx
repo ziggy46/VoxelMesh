@@ -7,13 +7,13 @@ import { IconChevron, IconPalette, IconRotate, Section, Segmented } from "../ui/
 type Member = { paletteIndex: number; name: string; color: string; count: number; skin?: boolean };
 
 export function FilamentSlotMapper() {
-  const { slotCount, setSlotCount, buckets, slotColors, setSlotColor, reassign, paletteToBucket, payload, counts, status, faceBuckets, entityBuckets } = usePrintStore();
+  const { slotCount, setSlotCount, buckets, slotColors, setSlotColor, reassign, paletteToBucket, payload, counts, status, faceBuckets, entityBuckets, modelBuckets } = usePrintStore();
   const [open, setOpen] = useState<number | null>(null);
   const idBase = useId();
 
   const members = useMemo(
-    () => (paletteToBucket && payload && counts ? slotMembers(paletteToBucket, payload.palette, counts, faceBuckets, entityBuckets) : new Map<number, Member[]>()),
-    [paletteToBucket, payload, counts, faceBuckets, entityBuckets],
+    () => (paletteToBucket && payload && counts ? slotMembers(paletteToBucket, payload.palette, counts, faceBuckets, entityBuckets, modelBuckets) : new Map<number, Member[]>()),
+    [paletteToBucket, payload, counts, faceBuckets, entityBuckets, modelBuckets],
   );
   const total = buckets.reduce((s, b) => s + (members.get(b.bucketId)?.reduce((n, m) => n + m.count, 0) ?? b.voxelCount), 0);
 

@@ -12,6 +12,7 @@ import type { PaletteEntry, VoxelPayload } from "../../types/voxelPayload";
 import { faceCell, faceNeighbour, faceOutside } from "./faceFrame";
 import { getCell, setCell } from "./gridAccess";
 import { isIncluded } from "./filters";
+import { modelOf } from "./models";
 
 /** Target skin thickness; colour layers thinner than a nozzle line blend into their neighbours when sliced. */
 export const SKIN_MM = 0.8;
@@ -85,7 +86,7 @@ export function planFaceColors(palette: PaletteEntry[], counts: Uint32Array, o: 
     for (let i = 1; i < palette.length; i++) {
       const e = palette[i]!;
       const faces = faceColorsOf(e);
-      if (!faces || !isIncluded(e, o) || (counts[i] ?? 0) === 0) continue;
+      if (!faces || !isIncluded(e, o) || modelOf(e, o) || (counts[i] ?? 0) === 0) continue;
       const core = coreColor(faces);
       colors[i] = { color: core };
       const mine = new Map<string, number>();

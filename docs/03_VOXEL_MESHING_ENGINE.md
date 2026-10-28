@@ -11,6 +11,7 @@ export interface MeshingOptions {
   includeFluids: boolean;         // default false
   includeFoliage: boolean;        // default false
   faceColors?: boolean;           // default true; colour each face of blocks that carry `faces`
+  exactShapes?: boolean;          // default true; print each block's drawn shape and colours (model) instead of its hitbox
   includeEntities?: boolean;      // default true; stamp captured entities into empty cells
   includeGlass?: boolean;         // default true; false drops palette entries tagged "glass"
   includeLeaves?: boolean;        // default true; false drops palette entries tagged "leaves"
@@ -57,6 +58,13 @@ Bucket ids are `1..K` (K ≤ 16). `0` is air. There is **no** special infill id:
 `minSub = ceil((minNozzleWallMm / scaleMmPerBlock) * 16)`. For any box with `maxX−minX < minSub` or `maxZ−minZ < minSub`, expand symmetrically about the box center on the offending axis, clamp to `[0,16]`; if clamping blocks one side, shift the remainder to the other side so the width reaches `minSub` (a box at a block edge must still end up thick enough). Y extents are untouched. At 4 mm/block, 0.8 mm → 4 sub-voxels.
 
 **Resin:** no dilation, no fill. Native proportions preserved.
+
+## 2d. Exact block shapes (`models.ts`, optional)
+
+`MeshingOptions.exactShapes` (default true). For entries with a `model`:
+1. **Plan** (`planModelColors`, before the clustering): the model colour covering the most cells becomes the block's own colour; every other distinct colour joins the clustering as an extra, weighted by the block count times its cells / 256 (at least 1).
+2. **Templates** (`buildModelTemplates`, after the clustering): each block type gets a 16x16x16 chunk of slot numbers in slicer layout, thickened to the minimum wall like any thin part (runs along MC x and z shorter than the wall are widened inside the block, using the same `widen` as entities). `buildSparseGrid` copies the template per block instead of filling the hitbox boxes.
+3. Relief and face skins skip entries that have a model. The slot list shows a block again in each other slot its colours reach.
 
 ## 2c. Entities (`entities.ts`, optional)
 

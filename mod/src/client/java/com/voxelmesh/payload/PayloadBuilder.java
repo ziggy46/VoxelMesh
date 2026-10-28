@@ -1,5 +1,6 @@
 package com.voxelmesh.payload;
 
+import com.voxelmesh.core.BlockModel;
 import com.voxelmesh.core.Category;
 import com.voxelmesh.core.ColorMath;
 import com.voxelmesh.core.FaceColors;
@@ -109,7 +110,8 @@ public final class PayloadBuilder {
         String id = BlockArgumentParser.stringifyBlockState(state) + (tint == -1 ? "" : "#tint=" + ColorMath.hex(tint).substring(1));
         String name = state.getBlock().getName().getString();
         List<String> faces = info.faceRgb() == null ? List.of() : FaceColors.resolve(info.faceRgb(), info.faceTintMask(), tint, rgb);
-        return new PaletteEntry(id, name, ColorMath.hex(rgb), info.category() == null ? Category.PARTIAL : info.category(), info.boxes(), info.relief(), info.tags(), faces);
+        BlockModel model = extractor.modelFor(state, info, tint);
+        return new PaletteEntry(id, name, ColorMath.hex(rgb), info.category() == null ? Category.PARTIAL : info.category(), info.boxes(), info.relief(), info.tags(), faces, model);
     }
 
     public Result result() {

@@ -19,6 +19,12 @@ export type SubVoxelBox = [minX: number, minY: number, minZ: number,
 
 export type BlockCategory = "solid" | "partial" | "thin" | "foliage" | "fluid" | "air";
 
+export interface BlockModelData {
+  palette: string[];   // "#RRGGBB", at most 256
+  /** [x0,y0,z0,x1,y1,z1,colourIndex]: block-local sub-voxels 0..16, MC axes, half-open; at most 4096 boxes. */
+  boxes: Array<[number, number, number, number, number, number, number]>;
+}
+
 export interface PaletteEntry {
   id: string;            // "minecraft:oak_stairs[facing=north,half=bottom]"
   name: string;          // "Oak Stairs"
@@ -31,6 +37,8 @@ export interface PaletteEntry {
   tags?: string[];
   /** Optional, full-cube blocks only: six "#RRGGBB" face colours in Direction order (DOWN, UP, NORTH, SOUTH, WEST, EAST). Present only when the faces differ visibly (grass, logs). */
   faces?: string[];
+  /** Optional: the shape and colours the game draws (docs/01 §3d). `boxes` stays the hitbox. */
+  model?: BlockModelData;
 }
 
 export interface PayloadEntity {
@@ -60,6 +68,9 @@ export interface VoxelPayload {
 - Reject: `version !== 1`, `palette[0].id !== "minecraft:air"`, any box with `max <= min` or outside `[0,16]`, decoded byte length ≠ `2*sx*sy*sz`, any voxel index ≥ `palette.length`, CRC mismatch.
 - Warn above 64³ blocks, hard-gate above 128³.
 - Palette ≤ 65,534 entries (bucket id 65535 is reserved and unused; see `docs/03`).
+
+## 3d. Block models (`model`)
+A block's hitbox is not always what you see: a fence's hitbox is a plain post and full-height arms with no rail gaps, a sculk shrieker reports a full cube, a door or an anvil has painted panels. For such states the mod sends the shape the game actually draws as coloured boxes inside the block. `boxes` stays the hitbox (it still classifies the block); when a `model` is present and the "Exact shapes and colours" option is on, the web app prints the model instead. Full cubes whose model is a cube (at least 90% of the block) carry none: face colours and relief cover them. Block-entity models (chests, beds, signs, banners) have no baked quads and keep their hitbox.
 
 ## 3c. Entities (`entities`)
 Entities are not in the voxel array (they have free positions and rotations), so they travel as boxes in the same sub-voxel units as block shapes, relative to the selection's minimum corner. The mod does all the rotation and clipping; the web app only sees integer boxes (invariant 6). No UUIDs, custom names or player data are stored, and players are never captured. Boxes are clipped to the selection and the loader rejects any outside it. Colours are quantised to 16 levels per channel by the mod (the web app clusters them into slots anyway).

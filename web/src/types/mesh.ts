@@ -13,6 +13,8 @@ export interface MeshingOptions {
   includeGlass?: boolean;
   /** Include blocks tagged "leaves". Default true; undefined counts as true. */
   includeLeaves?: boolean;
+  /** Use each block's drawn shape and colours (`model`) instead of its hitbox where the build has them. Default true; undefined counts as true. */
+  exactShapes?: boolean;
   /** Include captured entities (armor stands, paintings, mobs). Default true; undefined counts as true. */
   includeEntities?: boolean;
   /** Colour each face of blocks that carry `faces` (grass top vs side) with a thin skin of its own slot. Default true; undefined counts as true. */

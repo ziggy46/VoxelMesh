@@ -8,6 +8,7 @@ import { validateAll } from "../validate/manifold";
 import { quantizePaletteToSlots } from "./colorQuantizer";
 import { fillInteriorCavities } from "./meshingKernel/fill";
 import { applyEntities, planEntityColors } from "./meshingKernel/entities";
+import { buildModelTemplates, modelBuckets as planModelBuckets, planModelColors } from "./meshingKernel/models";
 import { applyFaceSkins, faceBuckets as planFaceBuckets, planFaceColors } from "./meshingKernel/faces";
 import { isIncluded } from "./meshingKernel/filters";
 import { applyRelief } from "./meshingKernel/relief";
@@ -38,6 +39,10 @@ export interface PipelineResult {
   faceCells: number | null;
   /** Set when face skins were wanted but the build is too large for the recolour budget. */
   facesSkipped: { wanted: number; limit: number } | null;
+  /** Palette index -> the other slots a block's model colours reach (with the colour in each). Empty when exact shapes are off. */
+  modelBuckets: Map<number, Array<[number, string]>>;
+  /** Block types drawn from their model instead of their hitbox. */
+  modelBlocks: number;
   /** Cells per filament slot that captured entities were stamped into (empty when there are none or they were skipped). */
   entityBuckets: Map<number, number>;
   /** Cells stamped for entities, or null when there are none or they were skipped. */
@@ -81,7 +86,9 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
   // Face colours join the clustering as extra points; the map and buckets handed back cover the real palette only.
   const facePlan = planFaceColors(p.palette, counts, o);
   // Entity colours join as further extras after the face colours.
-  const entityPlan = planEntityColors(facePlan.colors, facePlan.counts, p.entities, o);
+  // Exact block shapes add their colours first, then the entities'.
+  const modelPlan = planModelColors(p.palette, facePlan.colors, facePlan.counts, o);
+  const entityPlan = planEntityColors(modelPlan.colors, modelPlan.counts, p.entities, o);
   const raw0 = step("quantize", () => quantizePaletteToSlots(entityPlan.colors, entityPlan.counts, opts.maxSlots));
   const n = p.palette.length;
   const quantization: QuantizationResult = {
@@ -93,7 +100,8 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
     if (paletteIndex > 0 && paletteIndex < paletteToBucket.length) paletteToBucket[paletteIndex] = bucket;
   }
 
-  const grid = step("grid", () => buildSparseGrid(p, o, paletteToBucket));
+  const templates = buildModelTemplates(p.palette, modelPlan, raw0.paletteToBucketMap, paletteToBucket, o);
+  const grid = step("grid", () => buildSparseGrid(p, o, paletteToBucket, templates));
   // Relief carves surface texels before fill and repair, so both still see (and guarantee) the final geometry.
   const relief = o.reliefDepth ? step("relief", () => applyRelief(grid, p, paletteToBucket, o)) : null;
   // Face skins recolour what is left of the surface after relief, and before fill and repair so both see the final colours.
@@ -111,6 +119,7 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
   return { quantization, paletteToBucket, meshes, reports, repair, reliefCarved: relief && !relief.skipped ? relief.removed : null, reliefSkipped: relief?.skipped ?? null,
     reliefUsedDepth: relief && !relief.skipped ? relief.usedDepth : null,
     faceBuckets: skins?.skipped ? new Map() : buckets, faceCells: skins && !skins.skipped ? skins.recolored : null, facesSkipped: skins?.skipped ?? null,
+    modelBuckets: planModelBuckets(p.palette, modelPlan, raw0.paletteToBucketMap, paletteToBucket), modelBlocks: templates.size,
     entityBuckets: ents?.byBucket ?? new Map(), entityCells: ents && !ents.skipped ? ents.stamped : null, entitiesSkipped: ents?.skipped ?? null, timings };
 }
 

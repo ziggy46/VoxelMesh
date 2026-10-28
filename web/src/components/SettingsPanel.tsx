@@ -3,11 +3,11 @@ import { useId, useRef, useState } from "react";
 import { SAMPLES } from "../samples";
 import { usePrintStore } from "../store/usePrintStore";
 import { loadFile } from "../ui/files";
-import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasEntities, hasFaceData, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
+import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasEntities, hasFaceData, hasModelData, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
 import { IconChevron, IconFile, IconFilter, IconLayers, IconPalette, IconPlate, IconPrinter, IconRuler, IconUpload, Notice, Section, SwitchRow } from "../ui/kit";
 
 export function SettingsPanel() {
-  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth, faceCells, facesSkipped, entityCells, entitiesSkipped } = usePrintStore();
+  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth, faceCells, facesSkipped, entityCells, entitiesSkipped, modelBlocks } = usePrintStore();
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleId = useId();
   const scaleId = useId();
@@ -18,6 +18,7 @@ export function SettingsPanel() {
   const fits = size ? fitsBed(size, bed) : true;
   const hasRelief = hasReliefData(payload);
   const hasFaces = hasFaceData(payload);
+  const hasModels = hasModelData(payload);
   const entityCount = payload?.entities?.length ?? 0;
   const texel = texelMm(options.scaleMmPerBlock);
   const fineForNozzle = reliefTooFine(texel, options.minWallMm);
@@ -116,6 +117,14 @@ export function SettingsPanel() {
           <Notice tone="muted">Added {entityCells.toLocaleString()} cells from {entityCount} entit{entityCount === 1 ? "y" : "ies"}. They only fill empty space, never replace blocks.</Notice>
         )}
         <SwitchRow label="Fix non-manifold edges" hint="Adds or recolours single sub-voxels where parts only touch at an edge" checked={options.fixNonManifold} onChange={(v) => set("fixNonManifold", v)} />
+      </Section>
+
+      <Section icon={<IconLayers width={16} height={16} />} title="Block shapes">
+        <SwitchRow label="Exact shapes and colours" hint={hasModels ? "Fences, doors, anvils and similar blocks print as the game draws them, not as their hitbox" : "This build has no model data. Re-export it with the updated mod."}
+          checked={options.exactShapes} disabled={!hasModels} onChange={(v) => set("exactShapes", v)} />
+        {hasModels && options.exactShapes && modelBlocks > 0 && (
+          <Notice tone="muted">{modelBlocks} block type{modelBlocks === 1 ? "" : "s"} drawn from the game's model. Chests, beds, signs and other block-entity models are not available and keep their hitbox.</Notice>
+        )}
       </Section>
 
       <Section icon={<IconPalette width={16} height={16} />} title="Face colours">
