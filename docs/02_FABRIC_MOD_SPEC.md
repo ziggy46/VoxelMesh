@@ -47,8 +47,11 @@ For `solid` states the extractor also samples six 16×16 brightness maps (`docs/
 - **Duplicate merging.** Block states that produce identical content (category, boxes, colour, relief, tags) share one palette entry (`PaletteEntry.contentKey`, which ignores id and name), so a palette no longer carries dozens of look-alike stairs or log axes.
 - **High-res packs.** `ReliefSampler.footprintLuma` averages the `round(w/16) x round(h/16)` pixel footprint of each texel instead of a single pixel, so 32x or 64x resource packs give a smoothed map; at 16 px it is identical to the old behaviour.
 
+### 4.2d Face colours
+For `solid` states the extractor averages the sprite of each face's own full-face quad (first quad only, so overlays are ignored). Quads with colour index 0 are biome-tinted: the tint is applied per position in `PayloadBuilder` (like the block colour), not in the cached `StateInfo`. `core/FaceColors.resolve` returns six `#RRGGBB` strings, or an empty list when no two faces are at least 40 apart in RGB (so stone, dirt and leaves stay one colour). Faces with no readable quad use the block colour. `faces` is part of `PaletteEntry.contentKey`, so merging never mixes a grass block with a plain one.
+
 ### 4.3 Stretch (v2, out of scope now)
-Per-face colors (grass top vs. side) by splitting multi-colored blocks into face-colored sub-boxes.
+Entities (armor stands, item frames, paintings): not captured.
 
 ## 5. `CompanionUploader`
 Java 21 `HttpClient`, 10 s timeout, async; success → open browser; failure → local file fallback. No telemetry, no other hosts. The relay URL must be loopback unless the user edits the config explicitly; a non-loopback host triggers a one-time chat warning.

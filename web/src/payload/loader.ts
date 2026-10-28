@@ -118,6 +118,11 @@ function validatePaletteEntry(e: unknown, i: number): PaletteEntry {
       fail(`palette[${i}].tags must be up to 16 short strings`);
     }
   }
+  if (e.faces !== undefined) {
+    if (!Array.isArray(e.faces) || e.faces.length !== 6 || !e.faces.every((c: unknown) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c))) {
+      fail(`palette[${i}].faces must be six #RRGGBB colours`);
+    }
+  }
   return e as unknown as PaletteEntry;
 }
 

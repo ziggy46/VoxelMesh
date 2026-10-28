@@ -13,6 +13,8 @@ export interface MeshingOptions {
   includeGlass?: boolean;
   /** Include blocks tagged "leaves". Default true; undefined counts as true. */
   includeLeaves?: boolean;
+  /** Colour each face of blocks that carry `faces` (grass top vs side) with a thin skin of its own slot. Default true; undefined counts as true. */
+  faceColors?: boolean;
   fillInteriorCavities: boolean; // default: true for fdm, false for resin
   fixNonManifold: boolean; // default true
   minNozzleWallMm: number; // default 0.8 (fdm), 0 (resin)

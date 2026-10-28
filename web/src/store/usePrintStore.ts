@@ -44,6 +44,10 @@ interface PrintState {
   reliefCarved: number | null;
   reliefSkipped: { wanted: number; limit: number } | null;
   reliefUsedDepth: number | null;
+  /** Face-colour outcome of the last run: palette index -> face buckets, cells recoloured, or why skins were skipped. */
+  faceBuckets: Map<number, Uint16Array>;
+  faceCells: number | null;
+  facesSkipped: { wanted: number; limit: number } | null;
   timings: Record<string, number> | null;
 
   viewMode: ViewMode;
@@ -86,7 +90,8 @@ export const usePrintStore = create<PrintState>()((set, get) => {
         if (mySeq !== seq) return; // stale
         set({
           status: "ready", progress: null, meshes: r.meshes, buckets: r.buckets, paletteToBucket: r.paletteToBucket,
-          reports: r.reports, repair: r.repair, reliefCarved: r.reliefCarved, reliefSkipped: r.reliefSkipped, reliefUsedDepth: r.reliefUsedDepth, timings: r.timings,
+          reports: r.reports, repair: r.repair, reliefCarved: r.reliefCarved, reliefSkipped: r.reliefSkipped, reliefUsedDepth: r.reliefUsedDepth,
+          faceBuckets: r.faceBuckets, faceCells: r.faceCells, facesSkipped: r.facesSkipped, timings: r.timings,
         });
       })
       .catch((e: unknown) => {
@@ -105,7 +110,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
     getClient().load(loaded.payload);
     set({
       sourceName: name, payload: loaded.payload, counts, warnings: loaded.warnings, loading: false, loadError: null,
-      overrides: {}, slotColors: {}, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, timings: null,
+      overrides: {}, slotColors: {}, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, timings: null,
       sectionMm: null,
     });
     schedule(true);
@@ -114,7 +119,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
   return {
     sourceName: null, payload: null, counts: null, warnings: [], loading: false, loadError: null,
     options: DEFAULT_UI_OPTIONS, slotCount: 4, overrides: {}, slotColors: {},
-    status: "idle", progress: null, error: null, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, timings: null,
+    status: "idle", progress: null, error: null, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, timings: null,
     viewMode: "shaded", sectionMm: null,
 
     loadBytes: async (name, bytes) => {

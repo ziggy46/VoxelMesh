@@ -42,8 +42,11 @@ public final class BlockGeometryExtractor {
     private static final List<int[]> FLUID_BOXES = List.of(new int[] {0, 0, 0, 16, 14, 16});
     private static final List<int[]> FOLIAGE_BOXES = List.of(new int[] {4, 0, 4, 12, 10, 12});
 
-    /** `relief` is 1536 luma bytes for full-cube blocks (see ReliefSampler), else null. */
-    public record StateInfo(Category category, List<int[]> boxes, int rgb, byte[] relief, List<String> tags) {}
+    /**
+     * `relief` is 1536 luma bytes for full-cube blocks (see ReliefSampler), else null. `faceRgb` is each face's untinted average
+     * colour (-1 = no data) and `faceTintMask` marks the biome-tinted faces; both are null for blocks that are not full cubes.
+     */
+    public record StateInfo(Category category, List<int[]> boxes, int rgb, byte[] relief, List<String> tags, int[] faceRgb, int faceTintMask) {}
 
     /** Fabric's convention tags for glass; mods that tag their glass this way are covered without knowing them. */
     private static final TagKey<Block> GLASS_BLOCKS = TagKey.of(RegistryKeys.BLOCK, Identifier.of("c", "glass_blocks"));
@@ -86,7 +89,9 @@ public final class BlockGeometryExtractor {
             }
         }
         byte[] relief = category == Category.SOLID ? sampleRelief(state) : null;
-        return new StateInfo(category, boxes, baseColor(state, world, pos), relief, tagsFor(state));
+        int[] faceRgb = new int[ReliefSampler.FACES];
+        int tintMask = category == Category.SOLID ? sampleFaceColors(state, faceRgb) : -1;
+        return new StateInfo(category, boxes, baseColor(state, world, pos), relief, tagsFor(state), tintMask < 0 ? null : faceRgb, Math.max(tintMask, 0));
     }
 
     /** Labels the web app can filter on: leaves (solid cubes full of holes) and glass (windows). */
@@ -137,6 +142,43 @@ public final class BlockGeometryExtractor {
         } catch (RuntimeException e) {
             return -1; // closed or non-RGBA image: fall back to the map colour
         }
+    }
+
+    /**
+     * Average colour of each face's own full-face quad (first one only, so overlays such as the grass side tint are ignored).
+     * Fills `out` with 0xRRGGBB or -1 and returns the mask of faces whose quad is biome-tinted, or -1 when no face was readable.
+     */
+    private int sampleFaceColors(BlockState state, int[] out) {
+        java.util.Arrays.fill(out, -1);
+        BakedModel model;
+        try {
+            model = client.getBlockRenderManager().getModels().getModel(state);
+        } catch (RuntimeException e) {
+            return -1;
+        }
+        int mask = 0;
+        boolean any = false;
+        for (int f = 0; f < ReliefSampler.FACES; f++) {
+            try {
+                for (BakedQuad quad : model.getQuads(state, Direction.byId(f), Random.create(42L))) {
+                    int[] v = quad.getVertexData();
+                    float[] xyz = new float[12];
+                    for (int i = 0; i < 4; i++) {
+                        xyz[3 * i] = Float.intBitsToFloat(v[i * 8]);
+                        xyz[3 * i + 1] = Float.intBitsToFloat(v[i * 8 + 1]);
+                        xyz[3 * i + 2] = Float.intBitsToFloat(v[i * 8 + 2]);
+                    }
+                    if (!ReliefSampler.coversFace(f, xyz)) continue;
+                    out[f] = ColorMath.averageAbgr(pixelsOf(quad.getSprite()).abgr());
+                    if (quad.getColorIndex() == 0) mask |= 1 << f;
+                    any |= out[f] >= 0;
+                    break;
+                }
+            } catch (RuntimeException e) {
+                out[f] = -1;
+            }
+        }
+        return any ? mask : -1;
     }
 
     /**

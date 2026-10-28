@@ -3,11 +3,11 @@ import { useId, useRef, useState } from "react";
 import { SAMPLES } from "../samples";
 import { usePrintStore } from "../store/usePrintStore";
 import { loadFile } from "../ui/files";
-import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
-import { IconChevron, IconFile, IconFilter, IconLayers, IconPlate, IconPrinter, IconRuler, IconUpload, Notice, Section, SwitchRow } from "../ui/kit";
+import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasFaceData, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
+import { IconChevron, IconFile, IconFilter, IconLayers, IconPalette, IconPlate, IconPrinter, IconRuler, IconUpload, Notice, Section, SwitchRow } from "../ui/kit";
 
 export function SettingsPanel() {
-  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth } = usePrintStore();
+  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth, faceCells, facesSkipped } = usePrintStore();
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleId = useId();
   const scaleId = useId();
@@ -17,6 +17,7 @@ export function SettingsPanel() {
   const size = payload ? modelSizeMm(payload, options.scaleMmPerBlock) : null;
   const fits = size ? fitsBed(size, bed) : true;
   const hasRelief = hasReliefData(payload);
+  const hasFaces = hasFaceData(payload);
   const texel = texelMm(options.scaleMmPerBlock);
   const fineForNozzle = reliefTooFine(texel, options.minWallMm);
   const wallId = useId();
@@ -106,6 +107,17 @@ export function SettingsPanel() {
         <SwitchRow label="Include leaves" hint={hasTag(payload, "leaves") ? "Leaves print as solid cubes; turn off to skip tree canopies" : "No leaves in this build"}
           checked={options.includeLeaves} disabled={!hasTag(payload, "leaves")} onChange={(v) => set("includeLeaves", v)} />
         <SwitchRow label="Fix non-manifold edges" hint="Adds or recolours single sub-voxels where parts only touch at an edge" checked={options.fixNonManifold} onChange={(v) => set("fixNonManifold", v)} />
+      </Section>
+
+      <Section icon={<IconPalette width={16} height={16} />} title="Face colours">
+        <SwitchRow label="Colour each face" hint={hasFaces ? "Grass tops, log ends and similar blocks get a thin skin in their own slot" : "This build has no face colours. Re-export it with the updated mod."}
+          checked={options.faceColors} disabled={!hasFaces} onChange={(v) => set("faceColors", v)} />
+        {hasFaces && options.faceColors && facesSkipped && (
+          <Notice tone="warn">Face colours skipped: they would recolour {facesSkipped.wanted.toLocaleString()} cells (limit {facesSkipped.limit.toLocaleString()}). Use a smaller selection or turn them off.</Notice>
+        )}
+        {hasFaces && options.faceColors && faceCells !== null && (
+          <Notice tone="muted">Recoloured {faceCells.toLocaleString()} cells. The skin is about 0.8 mm thick; more filament slots show more colours.</Notice>
+        )}
       </Section>
 
       <Section icon={<IconLayers width={16} height={16} />} title="Surface relief">

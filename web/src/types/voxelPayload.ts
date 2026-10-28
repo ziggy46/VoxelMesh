@@ -20,6 +20,8 @@ export interface PaletteEntry {
   relief?: string;
   /** Optional labels the app can filter on: "glass" and "leaves". */
   tags?: string[];
+  /** Optional, full-cube blocks only: six "#RRGGBB" face colours in the order DOWN, UP, NORTH, SOUTH, WEST, EAST. */
+  faces?: string[];
 }
 
 export interface VoxelPayload {

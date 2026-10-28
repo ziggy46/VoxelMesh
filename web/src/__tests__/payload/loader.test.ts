@@ -143,3 +143,24 @@ describe("palette tags field", () => {
   });
 });
 
+
+describe("palette faces field", () => {
+  const six = ["#866043", "#5A8F3C", "#866043", "#866043", "#866043", "#866043"];
+  const withFaces = (faces: unknown) => {
+    const p = clone(small()) as any;
+    p.palette[1].faces = faces;
+    return p;
+  };
+  it("accepts six colours and keeps them", () => {
+    expect(parsePayload(withFaces(six)).payload.palette[1]!.faces).toEqual(six);
+  });
+  it("rejects a non-array, the wrong count, or anything that is not #RRGGBB", () => {
+    expect(() => parsePayload(withFaces("#866043"))).toThrow(/faces/);
+    expect(() => parsePayload(withFaces(six.slice(0, 5)))).toThrow(/faces/);
+    expect(() => parsePayload(withFaces([...six.slice(0, 5), "green"]))).toThrow(/faces/);
+    expect(() => parsePayload(withFaces([...six.slice(0, 5), 5]))).toThrow(/faces/);
+  });
+  it("payloads without faces still load", () => {
+    expect(() => parsePayload(small())).not.toThrow();
+  });
+});

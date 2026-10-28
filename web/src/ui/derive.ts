@@ -11,6 +11,8 @@ export interface UiOptions {
   includeFoliage: boolean;
   includeGlass: boolean;
   includeLeaves: boolean;
+  /** Colour each face of blocks like grass and logs with its own filament slot. */
+  faceColors: boolean;
   /** Fill sealed hollow cavities solid. */
   solidifyInteriors: boolean;
   fixNonManifold: boolean;
@@ -42,6 +44,7 @@ export const DEFAULT_UI_OPTIONS: UiOptions = {
   includeFoliage: false,
   includeGlass: true,
   includeLeaves: true,
+  faceColors: true,
   solidifyInteriors: true,
   fixNonManifold: true,
   reliefDepth: RELIEF_DEPTH, // on by default; the depth is fixed, only on/off and invert are user choices
@@ -62,6 +65,9 @@ export const texelMm = (scaleMmPerBlock: number): number => scaleMmPerBlock / 16
 /** Does any palette entry carry this tag ("glass" or "leaves")? Builds from an older mod have none. */
 export const hasTag = (p: VoxelPayload | null, tag: string): boolean => !!p && p.palette.some((e) => e.tags?.includes(tag));
 
+/** Does any palette entry carry face colours (grass top vs side)? Builds from an older mod do not. */
+export const hasFaceData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.faces && e.faces.length === 6);
+
 /** Does any palette entry carry relief data? Builds from an older mod do not. */
 export const hasReliefData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.relief);
 
@@ -77,6 +83,7 @@ export function toMeshingOptions(u: UiOptions): MeshingOptions {
     includeFoliage: u.includeFoliage,
     includeGlass: u.includeGlass,
     includeLeaves: u.includeLeaves,
+    faceColors: u.faceColors,
     fillInteriorCavities: u.solidifyInteriors,
     fixNonManifold: u.fixNonManifold,
     minNozzleWallMm: u.minWallMm,
@@ -88,13 +95,15 @@ export function toMeshingOptions(u: UiOptions): MeshingOptions {
 /** Does changing from `a` to `b` change the lattice geometry (so the worker must re-run)? Scale only matters while thickening is on. */
 export function needsRerun(a: UiOptions, b: UiOptions): boolean {
   const ma = toMeshingOptions(a), mb = toMeshingOptions(b);
-  const scaleMatters = ma.minNozzleWallMm > 0 || mb.minNozzleWallMm > 0;
+  // Scale sets the dilation and the face-skin thickness (about 0.8 mm of material), so it matters while either is on.
+  const scaleMatters = ma.minNozzleWallMm > 0 || mb.minNozzleWallMm > 0 || ma.faceColors !== false || mb.faceColors !== false;
   return (
     ma.minNozzleWallMm !== mb.minNozzleWallMm ||
     ma.includeFluids !== mb.includeFluids ||
     ma.includeFoliage !== mb.includeFoliage ||
     ma.includeGlass !== mb.includeGlass ||
     ma.includeLeaves !== mb.includeLeaves ||
+    ma.faceColors !== mb.faceColors ||
     ma.fillInteriorCavities !== mb.fillInteriorCavities ||
     ma.fixNonManifold !== mb.fixNonManifold ||
     ma.reliefDepth !== mb.reliefDepth ||
@@ -158,11 +167,15 @@ export function estimate(reports: ManifoldReport[], scaleMmPerBlock: number): { 
   return { volumeCm3, grams: volumeCm3 * PLA_G_PER_CM3 };
 }
 
-export interface SlotMember { paletteIndex: number; name: string; color: string; count: number }
+export interface SlotMember {
+  paletteIndex: number; name: string; color: string; count: number;
+  /** True for a block type that only reaches this slot through some of its faces (grass tops); it cannot be moved on its own. */
+  skin?: boolean;
+}
 
 /** Group palette entries by the bucket they currently map to (the effective map, overrides included). */
 export function slotMembers(
-  paletteToBucket: Uint16Array, palette: PaletteEntry[], counts: Uint32Array,
+  paletteToBucket: Uint16Array, palette: PaletteEntry[], counts: Uint32Array, faceBuckets?: ReadonlyMap<number, Uint16Array>,
 ): Map<number, SlotMember[]> {
   const out = new Map<number, SlotMember[]>();
   for (let i = 1; i < palette.length; i++) {
@@ -171,6 +184,19 @@ export function slotMembers(
     const list = out.get(b) ?? [];
     list.push({ paletteIndex: i, name: palette[i]!.name, color: palette[i]!.color ?? "#808080", count: counts[i] ?? 0 });
     out.set(b, list);
+  }
+  // Blocks whose faces carry other colours also appear in those slots, once per slot.
+  for (const [i, fb] of faceBuckets ?? []) {
+    const seen = new Set<number>();
+    for (let f = 0; f < 6; f++) {
+      const b = fb[f] ?? 0;
+      const hex = palette[i]?.faces?.[f];
+      if (b === 0 || seen.has(b) || !hex) continue;
+      seen.add(b);
+      const list = out.get(b) ?? [];
+      list.push({ paletteIndex: i, name: `${palette[i]!.name} (faces)`, color: hex, count: counts[i] ?? 0, skin: true });
+      out.set(b, list);
+    }
   }
   for (const l of out.values()) l.sort((a, b) => b.count - a.count || a.paletteIndex - b.paletteIndex);
   return out;

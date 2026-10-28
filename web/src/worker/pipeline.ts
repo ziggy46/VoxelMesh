@@ -1,4 +1,4 @@
-// Pipeline orchestration (docs/00 §1, docs/05 §3): decode -> quantize -> grid -> fill -> repair -> mesh -> heal -> validate.
+// Pipeline orchestration (docs/00 §1, docs/05 §3): decode -> quantize -> grid -> relief -> faces -> fill -> repair -> mesh -> heal -> validate.
 // Pure and synchronous so it runs in the worker, in Node tests and in perf measurements alike.
 import { decodeVoxels } from "../payload/loader";
 import type { QuantizationResult } from "../types/color";
@@ -7,6 +7,7 @@ import type { VoxelPayload } from "../types/voxelPayload";
 import { validateAll } from "../validate/manifold";
 import { quantizePaletteToSlots } from "./colorQuantizer";
 import { fillInteriorCavities } from "./meshingKernel/fill";
+import { applyFaceSkins, faceBuckets as planFaceBuckets, planFaceColors } from "./meshingKernel/faces";
 import { isIncluded } from "./meshingKernel/filters";
 import { applyRelief } from "./meshingKernel/relief";
 import { buildSparseGrid } from "./meshingKernel/grid";
@@ -14,8 +15,8 @@ import { extractMeshes } from "./meshingKernel/extract";
 import { repairNonManifold } from "./meshingKernel/repair";
 import { healTJunctions } from "./meshingKernel/tjunction";
 
-export type Stage = "decode" | "quantize" | "grid" | "relief" | "fill" | "repair" | "mesh" | "heal" | "validate";
-export const STAGES: readonly Stage[] = ["decode", "quantize", "grid", "relief", "fill", "repair", "mesh", "heal", "validate"];
+export type Stage = "decode" | "quantize" | "grid" | "relief" | "faces" | "fill" | "repair" | "mesh" | "heal" | "validate";
+export const STAGES: readonly Stage[] = ["decode", "quantize", "grid", "relief", "faces", "fill", "repair", "mesh", "heal", "validate"];
 
 export interface PipelineResult {
   quantization: QuantizationResult;
@@ -30,6 +31,12 @@ export interface PipelineResult {
   reliefSkipped: { wanted: number; limit: number } | null;
   /** Depth actually applied (lower than requested when the budget forced it), or null when relief is off or skipped. */
   reliefUsedDepth: number | null;
+  /** Palette index -> bucket for each face that keeps its own colour skin (0 = the block's own colour). Empty when face colours are off. */
+  faceBuckets: Map<number, Uint16Array>;
+  /** Cells recoloured by face skins, or null when there are none or they were skipped. */
+  faceCells: number | null;
+  /** Set when face skins were wanted but the build is too large for the recolour budget. */
+  facesSkipped: { wanted: number; limit: number } | null;
   /** Wall-clock milliseconds per stage. */
   timings: Record<Stage, number>;
 }
@@ -64,7 +71,14 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
     return c;
   });
 
-  const quantization = step("quantize", () => quantizePaletteToSlots(p.palette, counts, opts.maxSlots));
+  // Face colours join the clustering as extra points; the map and buckets handed back cover the real palette only.
+  const facePlan = planFaceColors(p.palette, counts, o);
+  const raw0 = step("quantize", () => quantizePaletteToSlots(facePlan.colors, facePlan.counts, opts.maxSlots));
+  const n = p.palette.length;
+  const quantization: QuantizationResult = {
+    buckets: raw0.buckets.map((b) => ({ ...b, paletteIndices: [...new Set(b.paletteIndices.map((i) => (i < n ? i : ownerOf(facePlan.faceIndex, i))))].sort((a, c) => a - c) })),
+    paletteToBucketMap: raw0.paletteToBucketMap.slice(0, n),
+  };
   const paletteToBucket = Uint16Array.from(quantization.paletteToBucketMap);
   for (const [paletteIndex, bucket] of opts.overrides ?? []) {
     if (paletteIndex > 0 && paletteIndex < paletteToBucket.length) paletteToBucket[paletteIndex] = bucket;
@@ -73,11 +87,21 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
   const grid = step("grid", () => buildSparseGrid(p, o, paletteToBucket));
   // Relief carves surface texels before fill and repair, so both still see (and guarantee) the final geometry.
   const relief = o.reliefDepth ? step("relief", () => applyRelief(grid, p, paletteToBucket, o)) : null;
+  // Face skins recolour what is left of the surface after relief, and before fill and repair so both see the final colours.
+  const buckets = planFaceBuckets(facePlan, raw0.paletteToBucketMap, paletteToBucket);
+  const skins = buckets.size > 0 ? step("faces", () => applyFaceSkins(grid, p, buckets, o)) : null;
   if (o.fillInteriorCavities) step("fill", () => fillInteriorCavities(grid));
   const repair = o.fixNonManifold ? step("repair", () => repairNonManifold(grid)) : null;
   const raw = step("mesh", () => extractMeshes(grid));
   const meshes = step("heal", () => raw.map(healTJunctions));
   const reports = step("validate", () => validateAll(meshes));
   return { quantization, paletteToBucket, meshes, reports, repair, reliefCarved: relief && !relief.skipped ? relief.removed : null, reliefSkipped: relief?.skipped ?? null,
-    reliefUsedDepth: relief && !relief.skipped ? relief.usedDepth : null, timings };
+    reliefUsedDepth: relief && !relief.skipped ? relief.usedDepth : null,
+    faceBuckets: skins?.skipped ? new Map() : buckets, faceCells: skins && !skins.skipped ? skins.recolored : null, facesSkipped: skins?.skipped ?? null, timings };
+}
+
+/** The palette index a face-colour extra belongs to (extras are numbered after the real palette). */
+function ownerOf(faceIndex: Map<number, number[]>, extra: number): number {
+  for (const [owner, idx] of faceIndex) if (idx.includes(extra)) return owner;
+  return extra;
 }

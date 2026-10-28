@@ -27,7 +27,8 @@ function runOne(req: RunRequest): void {
     post(
       {
         type: "result", seq: req.seq, meshes: r.meshes, buckets: r.quantization.buckets, paletteToBucket: r.paletteToBucket,
-        reports: r.reports, repair: r.repair, reliefCarved: r.reliefCarved, reliefSkipped: r.reliefSkipped, reliefUsedDepth: r.reliefUsedDepth, timings: r.timings,
+        reports: r.reports, repair: r.repair, reliefCarved: r.reliefCarved, reliefSkipped: r.reliefSkipped, reliefUsedDepth: r.reliefUsedDepth,
+        faceBuckets: r.faceBuckets, faceCells: r.faceCells, facesSkipped: r.facesSkipped, timings: r.timings,
       },
       transfer,
     );

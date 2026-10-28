@@ -29,6 +29,8 @@ export interface PaletteEntry {
   relief?: string;
   /** Optional filter tags. Only "glass" and "leaves" are defined; unknown tags are ignored. Older payloads have none. */
   tags?: string[];
+  /** Optional, full-cube blocks only: six "#RRGGBB" face colours in Direction order (DOWN, UP, NORTH, SOUTH, WEST, EAST). Present only when the faces differ visibly (grass, logs). */
+  faces?: string[];
 }
 
 export interface VoxelPayload {

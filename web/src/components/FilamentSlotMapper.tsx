@@ -4,16 +4,16 @@ import { usePrintStore, type SlotCount } from "../store/usePrintStore";
 import { SLOT_COUNTS, slotHex, slotMembers } from "../ui/derive";
 import { IconChevron, IconPalette, IconRotate, Section, Segmented } from "../ui/kit";
 
-type Member = { paletteIndex: number; name: string; color: string; count: number };
+type Member = { paletteIndex: number; name: string; color: string; count: number; skin?: boolean };
 
 export function FilamentSlotMapper() {
-  const { slotCount, setSlotCount, buckets, slotColors, setSlotColor, reassign, paletteToBucket, payload, counts, status } = usePrintStore();
+  const { slotCount, setSlotCount, buckets, slotColors, setSlotColor, reassign, paletteToBucket, payload, counts, status, faceBuckets } = usePrintStore();
   const [open, setOpen] = useState<number | null>(null);
   const idBase = useId();
 
   const members = useMemo(
-    () => (paletteToBucket && payload && counts ? slotMembers(paletteToBucket, payload.palette, counts) : new Map<number, Member[]>()),
-    [paletteToBucket, payload, counts],
+    () => (paletteToBucket && payload && counts ? slotMembers(paletteToBucket, payload.palette, counts, faceBuckets) : new Map<number, Member[]>()),
+    [paletteToBucket, payload, counts, faceBuckets],
   );
   const total = buckets.reduce((s, b) => s + (members.get(b.bucketId)?.reduce((n, m) => n + m.count, 0) ?? b.voxelCount), 0);
 
@@ -63,16 +63,16 @@ export function FilamentSlotMapper() {
               {isOpen && (
                 <ul id={panelId} className="space-y-1 border-t border-line px-3 py-2.5">
                   {list.map((m) => (
-                    <li key={m.paletteIndex} className="flex items-center gap-2.5 text-xs">
+                    <li key={`${m.paletteIndex}${m.skin ? "s" : ""}`} className="flex items-center gap-2.5 text-xs">
                       <span aria-hidden="true" className="h-3.5 w-3.5 flex-none rounded-[5px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.25)]" style={{ background: m.color }} />
                       <span className="min-w-0 flex-1 truncate text-ink-2">{m.name}</span>
                       <span className="num font-mono text-muted">{m.count.toLocaleString()}</span>
-                      <div className="relative">
+                      {m.skin ? <span className="w-[5.5rem] flex-none text-right text-muted">own colour</span> : (<div className="relative">
                         <select aria-label={`Move ${m.name} to slot`} value={b.bucketId} onChange={(e) => reassign(m.paletteIndex, Number(e.target.value))} className="ctl py-1 pl-2 pr-6 text-xs text-ink">
                           {buckets.map((o) => <option key={o.bucketId} value={o.bucketId} className="bg-[#10161d]">Slot {o.bucketId}</option>)}
                         </select>
                         <IconChevron width={11} height={11} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-muted" />
-                      </div>
+                      </div>)}
                     </li>
                   ))}
                 </ul>

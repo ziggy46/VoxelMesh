@@ -7,6 +7,7 @@ import { base64ToBytes, decodeVoxels } from "../../payload/loader";
 import type { MeshingOptions, ReliefDepth, SparseGrid } from "../../types/mesh";
 import { RELIEF_BYTES, type PaletteEntry, type VoxelPayload } from "../../types/voxelPayload";
 import { isIncluded } from "./filters";
+import { faceCell, faceNeighbour, faceOutside } from "./faceFrame";
 import { getCell, setCell } from "./gridAccess";
 
 const FACE = 256;
@@ -101,9 +102,8 @@ export function applyRelief(grid: SparseGrid, p: VoxelPayload, paletteToBucket: 
           for (let f = 0; f < 6; f++) {
             const map = lv[f]!;
             // Cheap whole-face skip: a numeric (uniform) non-air neighbour block fully covers this face.
-            const nbx = bx + (f === 5 ? 1 : f === 4 ? -1 : 0);
-            const nby = by + (f === 1 ? 1 : f === 0 ? -1 : 0);
-            const nbz = bz + (f === 3 ? 1 : f === 2 ? -1 : 0);
+            const [dx, dy, dz] = faceNeighbour(f);
+            const nbx = bx + dx, nby = by + dy, nbz = bz + dz;
             if (nbx >= 0 && nby >= 0 && nbz >= 0 && nbx < sx && nby < sy && nbz < sz) {
               const [cx, cy, cz] = slicer(nbx * 16, nby * 16, nbz * 16);
               const chunk = grid.cells[(cx >> 4) + (cy >> 4) * grid.blocks[0] + (cz >> 4) * grid.blocks[0] * grid.blocks[1]];
@@ -115,14 +115,9 @@ export function applyRelief(grid: SparseGrid, p: VoxelPayload, paletteToBucket: 
                 if (depthHere === 0) continue;
                 // Local MC lattice coords of the surface cell (k = 0) and the cell just outside it, per face frame.
                 for (let k = 0; k < depthHere; k++) {
-                  const [lx, ly, lz, ox, oy, oz] =
-                    f === 0 ? [a, k, b, a, -1, b]
-                    : f === 1 ? [a, 15 - k, b, a, 16, b]
-                    : f === 2 ? [a, b, k, a, b, -1]
-                    : f === 3 ? [a, b, 15 - k, a, b, 16]
-                    : f === 4 ? [k, b, a, -1, b, a]
-                    : [15 - k, b, a, 16, b, a];
+                  const [lx, ly, lz] = faceCell(f, a, b, k);
                   if (k === 0) {
+                    const [ox, oy, oz] = faceOutside(f, a, b);
                     const [ex, ey, ez] = slicer(bx * 16 + ox, by * 16 + oy, bz * 16 + oz);
                     if (getCell(grid, ex, ey, ez) !== 0) break; // covered by a solid neighbour: this column stays whole
                   }

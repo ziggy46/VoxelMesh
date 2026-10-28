@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sampleCastlePayload } from "../../samples/sampleCastlePayload";
 import {
-  BED_PRESETS, DEFAULT_UI_OPTIONS, hasTag, bedFor, bedLabel, clampBedMm, minSubVoxels, reliefTooFine, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
+  BED_PRESETS, DEFAULT_UI_OPTIONS, hasFaceData, hasTag, bedFor, bedLabel, clampBedMm, minSubVoxels, reliefTooFine, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
   toMeshingOptions, totalIssues, texelMm, hasReliefData,
 } from "../../ui/derive";
 import { gzip, serializePayload } from "../../payload/loader";
@@ -43,9 +43,10 @@ describe("toMeshingOptions", () => {
 describe("needsRerun", () => {
   const base = DEFAULT_UI_OPTIONS;
   const noWall = { ...DEFAULT_UI_OPTIONS, minWallMm: 0 };
-  it("scale only re-meshes while thickening is on", () => {
+  it("scale only re-meshes while thickening or face colours are on", () => {
     expect(needsRerun(base, { ...base, scaleMmPerBlock: 6 })).toBe(true);
-    expect(needsRerun(noWall, { ...noWall, scaleMmPerBlock: 6 })).toBe(false);
+    const inert = { ...noWall, faceColors: false };
+    expect(needsRerun(inert, { ...inert, scaleMmPerBlock: 6 })).toBe(false);
   });
   it("minimum wall, filters and fill toggles re-mesh", () => {
     expect(needsRerun(base, { ...base, includeFluids: true })).toBe(true);
@@ -89,6 +90,35 @@ describe("glass and leaves switches", () => {
     const tagged = { ...sampleCastlePayload, palette: sampleCastlePayload.palette.map((e, i) => (i === 1 ? { ...e, tags: ["glass"] } : e)) };
     expect(hasTag(tagged, "glass")).toBe(true);
     expect(hasTag(tagged, "leaves")).toBe(false);
+  });
+});
+
+describe("face colours", () => {
+  const faces = ["#866043", "#5A8F3C", "#866043", "#866043", "#866043", "#866043"];
+  const grassy = { ...sampleCastlePayload, palette: sampleCastlePayload.palette.map((e, i) => (i === 1 ? { ...e, faces } : e)) };
+  it("are on by default, reach the engine, and re-mesh when toggled or when scale changes", () => {
+    expect(toMeshingOptions(DEFAULT_UI_OPTIONS)).toMatchObject({ faceColors: true });
+    expect(toMeshingOptions({ ...DEFAULT_UI_OPTIONS, faceColors: false })).toMatchObject({ faceColors: false });
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, faceColors: false })).toBe(true);
+    // skin thickness depends on scale, so scale re-meshes even with thickening off
+    const noWall = { ...DEFAULT_UI_OPTIONS, minWallMm: 0 };
+    expect(needsRerun(noWall, { ...noWall, scaleMmPerBlock: 6 })).toBe(true);
+    expect(needsRerun({ ...noWall, faceColors: false }, { ...noWall, faceColors: false, scaleMmPerBlock: 6 })).toBe(false);
+  });
+  it("hasFaceData looks through the palette; older builds have none", () => {
+    expect(hasFaceData(null)).toBe(false);
+    expect(hasFaceData(sampleCastlePayload)).toBe(false);
+    expect(hasFaceData(grassy)).toBe(true);
+  });
+  it("slot members list a block again in each slot its faces reach, flagged as skin", () => {
+    const palette = grassy.palette;
+    const map = new Uint16Array(palette.length);
+    map[1] = 1;
+    const counts = new Uint32Array(palette.length);
+    counts[1] = 9;
+    const m = slotMembers(map, palette, counts, new Map([[1, Uint16Array.from([0, 2, 0, 0, 0, 0])]]));
+    expect(m.get(1)!.map((x) => x.skin ?? false)).toEqual([false]);
+    expect(m.get(2)!).toEqual([{ paletteIndex: 1, name: `${palette[1]!.name} (faces)`, color: "#5A8F3C", count: 9, skin: true }]);
   });
 });
 

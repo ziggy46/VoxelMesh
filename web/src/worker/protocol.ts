@@ -24,6 +24,9 @@ export interface RunResult {
   reliefCarved: number | null;
   reliefSkipped: { wanted: number; limit: number } | null;
   reliefUsedDepth: number | null;
+  faceBuckets: Map<number, Uint16Array>;
+  faceCells: number | null;
+  facesSkipped: { wanted: number; limit: number } | null;
   timings: Record<Stage, number>;
 }
 

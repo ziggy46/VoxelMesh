@@ -10,6 +10,7 @@ export interface MeshingOptions {
   scaleMmPerBlock: number;        // default 4.0
   includeFluids: boolean;         // default false
   includeFoliage: boolean;        // default false
+  faceColors?: boolean;           // default true; colour each face of blocks that carry `faces`
   includeGlass?: boolean;         // default true; false drops palette entries tagged "glass"
   includeLeaves?: boolean;        // default true; false drops palette entries tagged "leaves"
   fillInteriorCavities: boolean;  // default: true; independent of minNozzleWallMm
@@ -55,6 +56,16 @@ Bucket ids are `1..K` (K ≤ 16). `0` is air. There is **no** special infill id:
 `minSub = ceil((minNozzleWallMm / scaleMmPerBlock) * 16)`. For any box with `maxX−minX < minSub` or `maxZ−minZ < minSub`, expand symmetrically about the box center on the offending axis, clamp to `[0,16]`; if clamping blocks one side, shift the remainder to the other side so the width reaches `minSub` (a box at a block edge must still end up thick enough). Y extents are untouched. At 4 mm/block, 0.8 mm → 4 sub-voxels.
 
 **Resin:** no dilation, no fill. Native proportions preserved.
+
+## 2a. Face colours (`faces.ts`, optional)
+
+`MeshingOptions.faceColors` (default on). Entries with `faces` (full cubes only) get per-face colour skins:
+
+1. **Plan** (`planFaceColors`, before the clustering). The block's own colour becomes its *core*: the face colour closest to the other five (grass: dirt, log: bark). Every other distinct face colour joins the Lab K-means as an extra point weighted like its block type, so skins share slots with everything else. Entries the filters drop add nothing. With the option off or no `faces` in the payload this is the palette unchanged.
+2. **Skin** (`applyFaceSkins`, after relief and before fill/repair). For each block face with its own bucket (a face that clustered into the block's slot needs none), every column whose outside cell is air is recoloured for `skinDepth` cells starting at the first solid cell (at most `reliefDepth` cells down, so a face follows its own relief pits). `skinDepth` = round(0.8 mm / cell size), 1 to 6. Faces are applied sides, then bottom, then top, so a grass block keeps a green rim. Only colours change, never solidity, so bed fit and contacts are untouched. Faces covered by a solid neighbour block are skipped.
+3. **Budget.** `MAX_SKIN_CELLS` (2,000,000). Over it, skins are skipped entirely and the result says so (`facesSkipped`).
+
+Manual slot reassignment moves a block's core only; its skins keep their own slots. Mono (one slot) therefore has no skins.
 
 ## 2b. Surface relief (`relief.ts`, optional)
 
