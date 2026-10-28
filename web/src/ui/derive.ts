@@ -1,34 +1,41 @@
 // Pure UI helpers: option mapping, bed sizes, size/mass estimates, slot membership. No React, no DOM.
 import type { FilamentSlotBucket } from "../types/color";
-import { DEFAULT_FDM_OPTIONS, type ManifoldReport, type MeshingOptions, type ReliefDepth } from "../types/mesh";
+import type { ManifoldReport, MeshingOptions, ReliefDepth } from "../types/mesh";
 import type { PaletteEntry, VoxelPayload } from "../types/voxelPayload";
 
-export type PrinterMode = "fdm" | "resin";
-
 export interface UiOptions {
-  printerMode: PrinterMode;
   scaleMmPerBlock: number;
+  /** Parts thinner than this are thickened to it (X and Z only). 0 keeps every detail exactly as built. */
+  minWallMm: number;
   includeFluids: boolean;
   includeFoliage: boolean;
+  /** Fill sealed hollow cavities solid. */
   solidifyInteriors: boolean;
   fixNonManifold: boolean;
   /** Surface relief depth in sub-voxels (0 = off) and whether light texels are carved instead of dark. */
   reliefDepth: ReliefDepth;
   reliefInvert: boolean;
-  /** Build plate: one of the three presets for the printer type (0..2), or a custom size. */
+  /** Build plate: an index into BED_PRESETS, or a custom size. */
   bedPreset: BedPreset;
   customBed: Bed;
 }
 
-/** Middle preset of the three for either printer type. */
-export const DEFAULT_BED_PRESET: BedPreset = 1;
+/** 256 x 256 mm, the middle of the common FDM sizes. */
+export const DEFAULT_BED_PRESET: BedPreset = 4;
+
+/**
+ * Safe for any printer: features thinner than a 0.4 mm nozzle are silently dropped by FDM slicers, which is the worse
+ * failure. Fine-detail resin printing lowers this (about 0.2 to 0.3 mm) or sets it to 0.
+ */
+export const DEFAULT_MIN_WALL_MM = 0.8;
+export const MIN_WALL_MAX_MM = 1.2;
 
 /** The one relief depth the UI offers (in sub-voxels / texels). Deeper depths exist in the kernel but are not exposed. */
 export const RELIEF_DEPTH: ReliefDepth = 1;
 
 export const DEFAULT_UI_OPTIONS: UiOptions = {
-  printerMode: "fdm",
   scaleMmPerBlock: 4.0,
+  minWallMm: DEFAULT_MIN_WALL_MM,
   includeFluids: false,
   includeFoliage: false,
   solidifyInteriors: true,
@@ -51,28 +58,30 @@ export const texelMm = (scaleMmPerBlock: number): number => scaleMmPerBlock / 16
 /** Does any palette entry carry relief data? Builds from an older mod do not. */
 export const hasReliefData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.relief);
 
-/** Resin never solidifies interiors and never dilates (CLAUDE.md invariant 3), whatever the toggle says. */
+/**
+ * Thickening and cavity filling are independent options (CLAUDE.md invariant 3): a minimum wall of 0 keeps native detail, and
+ * filling only happens when asked. `printerMode` is only a label the engine carries, derived from whether thickening is on.
+ */
 export function toMeshingOptions(u: UiOptions): MeshingOptions {
-  const fdm = u.printerMode === "fdm";
   return {
-    printerMode: u.printerMode,
+    printerMode: u.minWallMm > 0 ? "fdm" : "resin",
     scaleMmPerBlock: u.scaleMmPerBlock,
     includeFluids: u.includeFluids,
     includeFoliage: u.includeFoliage,
-    fillInteriorCavities: fdm && u.solidifyInteriors,
+    fillInteriorCavities: u.solidifyInteriors,
     fixNonManifold: u.fixNonManifold,
-    minNozzleWallMm: fdm ? DEFAULT_FDM_OPTIONS.minNozzleWallMm : 0,
+    minNozzleWallMm: u.minWallMm,
     reliefDepth: u.reliefDepth,
     reliefInvert: u.reliefInvert,
   };
 }
 
-/** Does changing from `a` to `b` change the lattice geometry (so the worker must re-run)? Scale only matters in FDM. */
+/** Does changing from `a` to `b` change the lattice geometry (so the worker must re-run)? Scale only matters while thickening is on. */
 export function needsRerun(a: UiOptions, b: UiOptions): boolean {
   const ma = toMeshingOptions(a), mb = toMeshingOptions(b);
   const scaleMatters = ma.minNozzleWallMm > 0 || mb.minNozzleWallMm > 0;
   return (
-    ma.printerMode !== mb.printerMode ||
+    ma.minNozzleWallMm !== mb.minNozzleWallMm ||
     ma.includeFluids !== mb.includeFluids ||
     ma.includeFoliage !== mb.includeFoliage ||
     ma.fillInteriorCavities !== mb.fillInteriorCavities ||
@@ -85,23 +94,32 @@ export function needsRerun(a: UiOptions, b: UiOptions): boolean {
 
 /** Build plate footprint in mm. */
 export interface Bed { x: number; y: number }
-export type BedPreset = 0 | 1 | 2 | "custom";
+export type BedPreset = number | "custom";
 
-/** Three common sizes per printer type (FDM beds and resin vats are very different), plus a custom size. */
-export const BED_PRESETS: Record<PrinterMode, readonly [Bed, Bed, Bed]> = {
-  fdm: [{ x: 220, y: 220 }, { x: 256, y: 256 }, { x: 350, y: 350 }],
-  resin: [{ x: 130, y: 80 }, { x: 192, y: 120 }, { x: 218, y: 123 }],
-};
+/** Common plate sizes, small to large: resin vats first, then FDM beds. Anything else is a custom size. */
+export const BED_PRESETS: readonly Bed[] = [
+  { x: 130, y: 80 }, { x: 192, y: 120 }, { x: 218, y: 123 },
+  { x: 220, y: 220 }, { x: 256, y: 256 }, { x: 350, y: 350 },
+];
 export const BED_MIN_MM = 20;
 export const BED_MAX_MM = 1000;
 
 /** Round to whole millimetres inside the allowed range; non-numbers fall back to the minimum. */
 export const clampBedMm = (v: number): number => (Number.isFinite(v) ? Math.min(BED_MAX_MM, Math.max(BED_MIN_MM, Math.round(v))) : BED_MIN_MM);
 
-export function bedFor(o: Pick<UiOptions, "printerMode" | "bedPreset" | "customBed">): Bed {
+export function bedFor(o: Pick<UiOptions, "bedPreset" | "customBed">): Bed {
   if (o.bedPreset === "custom") return { x: clampBedMm(o.customBed.x), y: clampBedMm(o.customBed.y) };
-  return BED_PRESETS[o.printerMode][o.bedPreset];
+  return BED_PRESETS[o.bedPreset] ?? BED_PRESETS[DEFAULT_BED_PRESET as number]!;
 }
+
+/** Thin parts are thickened to this many sub-voxels (one sub-voxel is scale/16 mm); mirrors the engine's rule. */
+export function minSubVoxels(minWallMm: number, scaleMmPerBlock: number): number {
+  if (!(minWallMm > 0) || !(scaleMmPerBlock > 0)) return 0;
+  return Math.min(16, Math.ceil((minWallMm / scaleMmPerBlock) * 16 - 1e-9));
+}
+
+/** Relief texels finer than a 0.4 mm nozzle barely show; only worth saying when thickening says "FDM-like" (>= 0.6 mm wall). */
+export const reliefTooFine = (texel: number, minWallMm: number): boolean => minWallMm >= 0.6 && texel < NOZZLE_MM;
 
 export const bedLabel = (b: Bed): string => `${b.x} × ${b.y} mm`;
 

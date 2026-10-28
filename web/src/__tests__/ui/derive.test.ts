@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sampleCastlePayload } from "../../samples/sampleCastlePayload";
 import {
-  BED_PRESETS, DEFAULT_UI_OPTIONS, bedFor, bedLabel, clampBedMm, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
+  BED_PRESETS, DEFAULT_UI_OPTIONS, bedFor, bedLabel, clampBedMm, minSubVoxels, reliefTooFine, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
   toMeshingOptions, totalIssues, texelMm, hasReliefData,
 } from "../../ui/derive";
 import { gzip, serializePayload } from "../../payload/loader";
@@ -13,28 +13,46 @@ const report = (o: Partial<ManifoldReport> = {}): ManifoldReport => ({
 });
 
 describe("toMeshingOptions", () => {
-  it("FDM: 0.8 mm wall and cavity fill follow the toggle", () => {
+  it("defaults are safe for any printer: 0.8 mm minimum wall and hollow interiors filled", () => {
     expect(toMeshingOptions(DEFAULT_UI_OPTIONS)).toMatchObject({ printerMode: "fdm", minNozzleWallMm: 0.8, fillInteriorCavities: true });
-    expect(toMeshingOptions({ ...DEFAULT_UI_OPTIONS, solidifyInteriors: false }).fillInteriorCavities).toBe(false);
   });
-  it("Resin never fills or dilates, whatever the toggle says (invariant 3)", () => {
-    const o = toMeshingOptions({ ...DEFAULT_UI_OPTIONS, printerMode: "resin", solidifyInteriors: true });
-    expect(o).toMatchObject({ printerMode: "resin", minNozzleWallMm: 0, fillInteriorCavities: false });
+  it("thickening and filling are independent options with no hidden coupling (invariant 3)", () => {
+    const resinLike = toMeshingOptions({ ...DEFAULT_UI_OPTIONS, minWallMm: 0, solidifyInteriors: false });
+    expect(resinLike).toMatchObject({ printerMode: "resin", minNozzleWallMm: 0, fillInteriorCavities: false });
+    // thickening off but filling on, and the reverse, are both honoured exactly
+    expect(toMeshingOptions({ ...DEFAULT_UI_OPTIONS, minWallMm: 0 })).toMatchObject({ minNozzleWallMm: 0, fillInteriorCavities: true });
+    expect(toMeshingOptions({ ...DEFAULT_UI_OPTIONS, solidifyInteriors: false })).toMatchObject({ minNozzleWallMm: 0.8, fillInteriorCavities: false });
+    expect(toMeshingOptions({ ...DEFAULT_UI_OPTIONS, minWallMm: 0.3 }).minNozzleWallMm).toBe(0.3);
+  });
+  it("shows how many sub-voxels the minimum wall means at a scale, mirroring the engine", () => {
+    expect(minSubVoxels(0.8, 4)).toBe(4);
+    expect(minSubVoxels(0.8, 8)).toBe(2);
+    expect(minSubVoxels(0.8, 1)).toBe(13);
+    expect(minSubVoxels(0.3, 4)).toBe(2);
+    expect(minSubVoxels(0, 4)).toBe(0);
+    expect(minSubVoxels(1.2, 0.5)).toBe(16); // capped at one block
+  });
+  it("warns that relief is below a 0.4 mm nozzle only when the wall setting says FDM-like", () => {
+    expect(reliefTooFine(0.25, 0.8)).toBe(true);
+    expect(reliefTooFine(0.25, 0.3)).toBe(false); // fine-resin settings: no warning
+    expect(reliefTooFine(0.25, 0)).toBe(false);
+    expect(reliefTooFine(0.5, 0.8)).toBe(false);
   });
 });
 
 describe("needsRerun", () => {
-  const fdm = DEFAULT_UI_OPTIONS;
-  const resin = { ...DEFAULT_UI_OPTIONS, printerMode: "resin" as const };
-  it("scale only re-meshes in FDM", () => {
-    expect(needsRerun(fdm, { ...fdm, scaleMmPerBlock: 6 })).toBe(true);
-    expect(needsRerun(resin, { ...resin, scaleMmPerBlock: 6 })).toBe(false);
+  const base = DEFAULT_UI_OPTIONS;
+  const noWall = { ...DEFAULT_UI_OPTIONS, minWallMm: 0 };
+  it("scale only re-meshes while thickening is on", () => {
+    expect(needsRerun(base, { ...base, scaleMmPerBlock: 6 })).toBe(true);
+    expect(needsRerun(noWall, { ...noWall, scaleMmPerBlock: 6 })).toBe(false);
   });
-  it("filters, mode and fill toggles re-mesh; the solidify toggle is inert in Resin", () => {
-    expect(needsRerun(fdm, { ...fdm, includeFluids: true })).toBe(true);
-    expect(needsRerun(fdm, resin)).toBe(true);
-    expect(needsRerun(fdm, { ...fdm, solidifyInteriors: false })).toBe(true);
-    expect(needsRerun(resin, { ...resin, solidifyInteriors: false })).toBe(false);
+  it("minimum wall, filters and fill toggles re-mesh", () => {
+    expect(needsRerun(base, { ...base, includeFluids: true })).toBe(true);
+    expect(needsRerun(base, { ...base, minWallMm: 0.3 })).toBe(true);
+    expect(needsRerun(base, noWall)).toBe(true);
+    expect(needsRerun(base, { ...base, solidifyInteriors: false })).toBe(true);
+    expect(needsRerun(base, { ...base })).toBe(false);
   });
 });
 
@@ -59,12 +77,11 @@ describe("relief options", () => {
 });
 
 describe("build plate", () => {
-  it("offers three presets per printer type, defaulting to the middle one", () => {
-    expect(BED_PRESETS.fdm.map(bedLabel)).toEqual(["220 × 220 mm", "256 × 256 mm", "350 × 350 mm"]);
-    expect(BED_PRESETS.resin.map(bedLabel)).toEqual(["130 × 80 mm", "192 × 120 mm", "218 × 123 mm"]);
+  it("offers six common sizes in one list, small to large, defaulting to 256 x 256", () => {
+    expect(BED_PRESETS.map(bedLabel)).toEqual(["130 × 80 mm", "192 × 120 mm", "218 × 123 mm", "220 × 220 mm", "256 × 256 mm", "350 × 350 mm"]);
     expect(bedFor(DEFAULT_UI_OPTIONS)).toEqual({ x: 256, y: 256 });
-    expect(bedFor({ ...DEFAULT_UI_OPTIONS, printerMode: "resin" })).toEqual({ x: 192, y: 120 });
-    expect(bedFor({ ...DEFAULT_UI_OPTIONS, bedPreset: 0 })).toEqual({ x: 220, y: 220 });
+    expect(bedFor({ ...DEFAULT_UI_OPTIONS, bedPreset: 0 })).toEqual({ x: 130, y: 80 });
+    expect(bedFor({ ...DEFAULT_UI_OPTIONS, bedPreset: 99 })).toEqual({ x: 256, y: 256 }); // unknown index falls back to the default
   });
   it("uses and clamps a custom size", () => {
     const custom = { ...DEFAULT_UI_OPTIONS, bedPreset: "custom" as const };
@@ -88,7 +105,7 @@ describe("size, bed and estimates", () => {
     const fdm = bedFor(DEFAULT_UI_OPTIONS); // 256 x 256 by default
     expect(fitsBed([250, 250, 300], fdm)).toBe(true);
     expect(fitsBed([257, 100, 10], fdm)).toBe(false);
-    expect(fitsBed([221, 100, 10], bedFor({ ...DEFAULT_UI_OPTIONS, printerMode: "resin", bedPreset: 2 }))).toBe(false); // 218 x 123
+    expect(fitsBed([221, 100, 10], bedFor({ ...DEFAULT_UI_OPTIONS, bedPreset: 2 }))).toBe(false); // 218 x 123
   });
   it("estimates volume and PLA mass: one 4 mm block is 0.064 cm3 = 0.079 g", () => {
     const e = estimate([report()], 4);

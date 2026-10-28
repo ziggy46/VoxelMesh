@@ -3,12 +3,12 @@
 Turn a Minecraft build into a 3D-print-ready model with real block geometry and multi-colour support. Everything runs on your own machine or in your own browser: builds are never uploaded.
 
 - **`mod/`**: a Fabric client mod for Minecraft **1.21.1** (Java 21). Select two corners, run `/vm export`, and the mod reads each block's real shape and its average texture colour.
-- **`web/`**: the web app (Vite, React 19, TypeScript, Three.js). A Web Worker builds a sparse sub-voxel grid, applies FDM or Resin rules, repairs non-manifold geometry, previews the result in 3D, and exports a watertight multi-colour `.3MF` or a binary `.STL`.
+- **`web/`**: the web app (Vite, React 19, TypeScript, Three.js). A Web Worker builds a sparse sub-voxel grid, applies the minimum-wall and fill options, repairs non-manifold geometry, previews the result in 3D, and exports a watertight multi-colour `.3MF` or a binary `.STL`.
 
 ## What makes it different
 
 - **Real geometry.** Stairs, slabs, fences, chains and modded shapes keep their sub-voxel form (16×16×16 per block), not just cubes.
-- **Printer-aware.** FDM thickens features below the nozzle wall and fills sealed cavities. Resin keeps native detail.
+- **Printer-aware, no mode to pick.** Two plain options: thicken parts thinner than a minimum wall (default 0.8 mm, safe for FDM; lower it, or 0, for fine resin) and fill hollow interiors (on by default; off keeps a model hollow).
 - **Provably watertight.** Every colour bucket must pass an in-app manifold check before export, and the UI says so if one does not.
 - **Surface relief.** Optionally carves the block textures' brightness into the surface, so even a single-colour print looks textured.
 - **Deterministic.** The same build and settings give byte-identical output.
@@ -54,6 +54,6 @@ cd mod && ./gradlew build                # compile, JUnit, remapped jar
 
 ## Status
 
-Working end to end: capture in game, preview, FDM and Resin meshing, validated `.3MF` and `.STL` export. The sample castle imports into Bambu Studio. Not yet checked in other slicers. Known limits: Fabric 1.21.1 only; surface relief covers full-cube blocks only and is skipped on very large builds; very large selections (64³ blocks and up) have no reduced-quality preview path yet.
+Working end to end: capture in game, preview, thickening and fill options, validated `.3MF` and `.STL` export. The sample castle imports into Bambu Studio. Not yet checked in other slicers. Known limits: Fabric 1.21.1 only; surface relief covers full-cube blocks only and is skipped on very large builds; very large selections (64³ blocks and up) have no reduced-quality preview path yet.
 
 Licensed under the [MIT License](LICENSE). Minecraft is a trademark of Mojang AB. This project is not affiliated with or endorsed by Mojang or Microsoft, and contains no Minecraft code or assets.

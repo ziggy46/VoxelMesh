@@ -3,15 +3,10 @@ import { useId, useRef, useState } from "react";
 import { SAMPLES } from "../samples";
 import { usePrintStore } from "../store/usePrintStore";
 import { loadFile } from "../ui/files";
-import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, DEFAULT_BED_PRESET, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasReliefData, modelSizeMm, texelMm, type BedPreset, type PrinterMode, type UiOptions } from "../ui/derive";
+import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasReliefData, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
 import { IconChevron, IconFile, IconFilter, IconLayers, IconPlate, IconPrinter, IconRuler, IconUpload, Notice, Section, SwitchRow } from "../ui/kit";
 
-const TARGETS: Array<{ id: PrinterMode; title: string; detail: string }> = [
-  { id: "fdm", title: "FDM multi-colour", detail: "0.4 mm nozzle. Thickens thin parts to 0.8 mm and fills sealed cavities." },
-  { id: "resin", title: "Resin (MSLA)", detail: "Keeps native detail: no thickening, no fill." },
-];
-
-export function PrinterModePanel() {
+export function SettingsPanel() {
   const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth } = usePrintStore();
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleId = useId();
@@ -23,7 +18,8 @@ export function PrinterModePanel() {
   const fits = size ? fitsBed(size, bed) : true;
   const hasRelief = hasReliefData(payload);
   const texel = texelMm(options.scaleMmPerBlock);
-  const fineForFdm = options.printerMode === "fdm" && texel < NOZZLE_MM;
+  const fineForNozzle = reliefTooFine(texel, options.minWallMm);
+  const wallId = useId();
   const reliefOn = options.reliefDepth > 0;
   const set = <K extends keyof UiOptions>(k: K, v: UiOptions[K]) => setOptions({ [k]: v } as Partial<UiOptions>);
 
@@ -63,25 +59,14 @@ export function PrinterModePanel() {
         </div>
       </Section>
 
-      <Section icon={<IconPrinter width={16} height={16} />} title="Printer">
-        <div role="radiogroup" aria-label="Printer target" className="grid gap-2">
-          {TARGETS.map((t) => (
-            <button key={t.id} type="button" role="radio" aria-checked={options.printerMode === t.id} onClick={() => setOptions({ printerMode: t.id, bedPreset: options.bedPreset === "custom" ? "custom" : DEFAULT_BED_PRESET })} className="tile px-3.5 py-3">
-              <span className="block font-semibold text-ink">{t.title}</span>
-              <span className="mt-0.5 block text-xs leading-snug text-muted">{t.detail}</span>
-            </button>
-          ))}
-        </div>
-      </Section>
-
       <Section icon={<IconPlate width={16} height={16} />} title="Build plate">
-        <div role="radiogroup" aria-label="Build plate size" className="grid grid-cols-2 gap-2">
-          {BED_PRESETS[options.printerMode].map((b, i) => (
-            <button key={i} type="button" role="radio" aria-checked={options.bedPreset === i} onClick={() => set("bedPreset", i as BedPreset)} className="tile num px-3 py-2.5 font-mono text-[13px] text-ink">
+        <div role="radiogroup" aria-label="Build plate size" className="grid grid-cols-3 gap-2">
+          {BED_PRESETS.map((b, i) => (
+            <button key={i} type="button" role="radio" aria-checked={options.bedPreset === i} onClick={() => set("bedPreset", i as BedPreset)} className="tile num px-1 py-2.5 text-center font-mono text-[12px] text-ink">
               {b.x} × {b.y}
             </button>
           ))}
-          <button type="button" role="radio" aria-checked={options.bedPreset === "custom"} onClick={() => set("bedPreset", "custom")} className="tile px-3 py-2.5 text-[13px] font-medium text-ink">
+          <button type="button" role="radio" aria-checked={options.bedPreset === "custom"} onClick={() => set("bedPreset", "custom")} className="tile col-span-3 px-3 py-2.5 text-[13px] font-medium text-ink">
             Custom size
           </button>
         </div>
@@ -97,11 +82,25 @@ export function PrinterModePanel() {
         {!fits && <Notice tone="warn">Larger than the {bedLabel(bed)} plate. Lower the scale or split the model.</Notice>}
       </Section>
 
+      <Section icon={<IconPrinter width={16} height={16} />} title="Printability"
+        aside={<span className="num font-mono">{options.minWallMm > 0 ? `${options.minWallMm.toFixed(1)} mm wall` : "Off"}</span>}>
+        <label htmlFor={wallId} className="block font-medium text-ink">Thicken thin parts</label>
+        <input id={wallId} type="range" min={0} max={MIN_WALL_MAX_MM} step={0.1} value={options.minWallMm}
+          aria-label="Minimum wall thickness in millimetres" onChange={(e) => set("minWallMm", Math.round(Number(e.target.value) * 10) / 10)} />
+        <p className="text-xs leading-snug text-muted" aria-live="polite">
+          {options.minWallMm > 0
+            ? `Parts thinner than ${options.minWallMm.toFixed(1)} mm are thickened to it (${minSubVoxels(options.minWallMm, options.scaleMmPerBlock)} sub-voxels at this scale). About 0.8 mm suits FDM; 0.2 to 0.3 mm suits fine resin.`
+            : `Every detail is kept exactly as built. Parts finer than your nozzle may not print on FDM.`}
+        </p>
+        <div className="mt-2">
+          <SwitchRow label="Fill hollow interiors" hint="Fills sealed cavities solid. Turn off to keep a hollow model hollow."
+            checked={options.solidifyInteriors} onChange={(v) => set("solidifyInteriors", v)} />
+        </div>
+      </Section>
+
       <Section icon={<IconFilter width={16} height={16} />} title="Filters">
         <SwitchRow label="Include fluids" hint="Water and lava become solid slabs" checked={options.includeFluids} onChange={(v) => set("includeFluids", v)} />
         <SwitchRow label="Include foliage" hint="Flowers and crops as small stylised boxes" checked={options.includeFoliage} onChange={(v) => set("includeFoliage", v)} />
-        <SwitchRow label="Solidify interiors" hint={options.printerMode === "resin" ? "FDM only: Resin keeps native detail" : "Fill sealed cavities"}
-          checked={options.printerMode === "fdm" && options.solidifyInteriors} disabled={options.printerMode === "resin"} onChange={(v) => set("solidifyInteriors", v)} />
         <SwitchRow label="Fix non-manifold edges" hint="Adds or recolours single sub-voxels where parts only touch at an edge" checked={options.fixNonManifold} onChange={(v) => set("fixNonManifold", v)} />
       </Section>
 
@@ -112,7 +111,7 @@ export function PrinterModePanel() {
           <SwitchRow label="Invert" hint="Carve the light areas instead of the dark ones" checked={options.reliefInvert} onChange={(v) => set("reliefInvert", v)} />
         )}
         <p className="num mt-1 font-mono text-xs text-muted" aria-live="polite">1 texel = {texel.toFixed(2)} mm{reliefOn ? ` · depth ${(texel * RELIEF_DEPTH).toFixed(2)} mm` : ""}</p>
-        {hasRelief && reliefOn && fineForFdm && <Notice tone="warn">Finer than a {NOZZLE_MM} mm nozzle, so it will barely show on FDM. Use at least {(NOZZLE_MM * 16).toFixed(1)} mm per block.</Notice>}
+        {hasRelief && reliefOn && fineForNozzle && <Notice tone="warn">Finer than a {NOZZLE_MM} mm nozzle, so it will barely show on FDM. Use at least {(NOZZLE_MM * 16).toFixed(1)} mm per block.</Notice>}
         {reliefSkipped && reliefOn && (
           <Notice tone="warn">Relief skipped: it would carve {reliefSkipped.wanted.toLocaleString()} texels (limit {reliefSkipped.limit.toLocaleString()}) and make the mesh too heavy. Use a smaller selection or turn relief off.</Notice>
         )}

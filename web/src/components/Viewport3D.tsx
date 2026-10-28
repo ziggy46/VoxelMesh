@@ -147,7 +147,7 @@ export function Viewport3D() {
     <section aria-label="3D preview" className="relative h-full w-full">
       <div ref={wrap} tabIndex={0} role="application" aria-label="3D view. Drag to orbit, scroll to zoom, arrow keys to pan." className="absolute inset-0 outline-offset-[-3px]">
         <Canvas
-          key={`${options.printerMode}-${bed.x}x${bed.y}`}
+          key={`${bed.x}x${bed.y}`}
           gl={{ localClippingEnabled: true, antialias: true }}
           camera={{ position: [bed.x / 2, reach * 0.6, -bed.y / 2 + reach * 0.9], fov: 40, near: 1, far: 5000 }}
         >

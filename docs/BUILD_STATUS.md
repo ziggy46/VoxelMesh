@@ -147,3 +147,10 @@ Feature request after G5: make a single-colour print look textured by carving bl
 - **Panel edge:** scrolling panel bodies now fade at the bottom with matching padding (`.scroll-fade`) instead of being cut through a divider, and slider keyboard focus is drawn on the round thumb instead of a square outline.
 - **Not done:** the resin presets (130x80, 192x120, 218x123) are my picks for common LCD sizes, not checked against a vendor list; mod and exporters are unchanged. Slicer names still appear in docs and one code comment as compatibility notes (for example the 3MF `model_settings.config` hint), not in the UI.
 
+### No printer mode (2026-10-27)
+- **Change (user request):** the FDM/Resin choice is gone. The two things it bundled are now independent options: **Thicken thin parts** (minimum wall slider, 0 to 1.2 mm, default 0.8, 0 = off) and **Fill hollow interiors** (switch, default on). The build plate is one combined list of six sizes plus custom (default 256 x 256).
+- **Why these defaults:** a slicer silently drops features thinner than the nozzle, which is the worse failure than losing resin detail. Fine-detail resin users lower the wall (about 0.2 to 0.3 mm) or set it to 0.
+- **Engine:** unchanged. `MeshingOptions.printerMode` remains as a label derived from `minNozzleWallMm > 0` (no kernel reads it); kernel tests still use `DEFAULT_FDM_OPTIONS` / `DEFAULT_RESIN_OPTIONS` as two named option sets. CLAUDE.md invariant 3 was reworded from "Resin != FDM" to independent options.
+- **Checked in a browser:** the Printer section is gone, six plate tiles plus custom render, and with the wall set to 0 and fill off the castle's volume drops from 141.0 to 126.6 cm3, the helper text changes and the nozzle warning for relief disappears. 280 web tests pass.
+- **Behaviour change to know about:** resin users no longer get "no fill" for free; they must turn "Fill hollow interiors" off (and lower the wall) themselves. The app still adds no resin drain holes.
+

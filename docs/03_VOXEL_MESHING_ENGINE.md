@@ -6,13 +6,13 @@ Delegated as D1 (§1–§4) and D2 (§5–§6). Types below live in `web/src/typ
 
 ```ts
 export interface MeshingOptions {
-  printerMode: "fdm" | "resin";
+  printerMode: "fdm" | "resin";   // a label only, derived by the UI from minNozzleWallMm > 0; no kernel reads it
   scaleMmPerBlock: number;        // default 4.0
   includeFluids: boolean;         // default false
   includeFoliage: boolean;        // default false
-  fillInteriorCavities: boolean;  // default: true for fdm, false for resin
+  fillInteriorCavities: boolean;  // default: true; independent of minNozzleWallMm
   fixNonManifold: boolean;        // default true
-  minNozzleWallMm: number;        // default 0.8 (fdm), 0 (resin)
+  minNozzleWallMm: number;        // default 0.8 (safe for any printer); 0 keeps native detail
 }
 
 /** Block-chunked sparse grid in SLICER space. Block index = bx + by*Bx + bz*Bx*By. */

@@ -5,14 +5,14 @@
 **VoxelMesh** turns a Minecraft build into a 3D-print-ready model with true block geometry and multi-color support, running entirely on the user's machine.
 
 1. **`mod/` — Fabric client mod (Java 21, MC 1.21.1).** The player selects two corners. The mod reads each block's real `VoxelShape` (quantized to a 16×16×16 sub-voxel grid) and its average texture color (vanilla and modded blocks, resource packs included), gzips the result, hands it to the web app on localhost, and opens the browser.
-2. **`web/` — Web companion (Vite + React 19 + TypeScript + Three.js).** A Web Worker builds a sparse sub-voxel grid, applies FDM or Resin rules, repairs non-manifold geometry, culls hidden faces, quantizes colors to filament slots, previews in 3D, and exports watertight multi-color `.3MF` or binary `.STL`.
+2. **`web/` — Web companion (Vite + React 19 + TypeScript + Three.js).** A Web Worker builds a sparse sub-voxel grid, applies the minimum-wall and cavity-fill options, repairs non-manifold geometry, culls hidden faces, quantizes colors to filament slots, previews in 3D, and exports watertight multi-color `.3MF` or binary `.STL`.
 
 ### Scope
 **Fabric on Minecraft 1.21.1 only** (Java 21, Yarn mappings). Other loaders (NeoForge) and other Minecraft versions are later ports, not goals. Keep Fabric API calls in a small package and write the extractor and payload builder against vanilla classes, so a port has a clear seam. The web app and payload format are loader- and version-independent.
 
 ### What makes VoxelMesh different from cube-exporters and cloud converters
 - **Real geometry**: stairs, slabs, fences, chains, lanterns and modded shapes keep their sub-voxel form.
-- **Printer-aware**: FDM and Resin are separate geometry pipelines.
+- **Printer-aware without a mode**: thickening thin parts and filling hollow interiors are independent options. The defaults (0.8 mm minimum wall, fill on) are safe for any printer; a wall of 0 and fill off keep resin-grade detail.
 - **Provably watertight**: every export passes an in-app manifold validator (`docs/06`). If validation fails the UI says so; no silent bad exports.
 - **Local-first**: the shipped app makes no third-party network calls. Builds never leave the user's machine.
 - **Deterministic**: same payload + options → byte-identical output.
@@ -49,7 +49,7 @@ Only specs, interface files and source code go to Gemini. Never pipe real player
 
 1. **No cube assumption.** Every block is its `VoxelShape` boxes in integer `[0..16]` units. Only full opaque blocks are `[0,0,0,16,16,16]`.
 2. **Sparse, never dense.** A 128³-block selection is 2048³ sub-voxels; a dense array is impossible. The grid is chunked per block (`docs/03 §1`); uniform chunks are one number. No kernel may allocate O(total sub-voxels).
-3. **Resin ≠ FDM.** Resin keeps native 16³ detail (no dilation, no interior fill). FDM dilates features below the nozzle wall and fills enclosed cavities.
+3. **Thickening and filling are independent, explicit options.** A minimum wall of 0 keeps native 16³ detail (no dilation); a positive value dilates features thinner than it (X and Z only). Enclosed cavities are filled only when asked. Neither option implies the other and there is no printer-type mode that bundles them. (Formerly "Resin ≠ FDM": the same two behaviours, now chosen separately.)
 4. **Every color bucket is a closed 2-manifold**, including faces shared between two touching buckets (both sides emit the face). Diagonal edge/vertex contacts are checked *per bucket* (`docs/03 §4`).
 5. **3MF hierarchy.** All per-color `<object>`s are wrapped in one parent `<object>` via `<components>`; `<build>` has exactly one `<item>` pointing at the parent.
 6. **Integer lattice.** Mesh vertices are integer sub-voxel coordinates (`Int32Array`). Millimeter scaling happens only at export, so welding and edge matching are exact.

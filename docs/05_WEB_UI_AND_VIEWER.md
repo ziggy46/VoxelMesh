@@ -7,13 +7,13 @@ Vite + React 19 + TypeScript; `three`, `@react-three/fiber`, `@react-three/drei`
 
 ### Left sidebar — Import & presets (`PrinterModePanel.tsx`)
 - Source: sample dropdown (Medieval Watchtower, Redstone Contraption, Floating Sky Island), drag-and-drop `.vxm.json` / `.vxm.json.gz`, automatic `?build=<id>` load from the relay.
-- Printer target: **FDM Multi-Color (0.4 mm)**: 0.8 mm min wall + cavity fill. **Resin (MSLA)**: native detail, no fill.
+- Printability (there is no printer-type picker): a **Thicken thin parts** slider (minimum wall, 0 to 1.2 mm, default 0.8, 0 = off, with a live "N sub-voxels at this scale" note) and a **Fill hollow interiors** switch (default on). Defaults are safe for any printer; fine resin lowers the wall to about 0.2 to 0.3 mm or 0.
 - Scale slider 1.0–15.0 mm/block (default 4.0) with live bounding box readout (`96.0 × 96.0 × 72.0 mm`) and a warning when it exceeds the bed.
 - Filters: include fluids, include foliage, solidify interiors, fix non-manifold edges.
 - Surface relief: depth Off / 1 / 2 / 3 texels (a depth map: darker areas carve deeper), an Invert toggle, a live "1 texel = x mm · depth y mm" readout, a warning when a texel is finer than a 0.4 mm nozzle on FDM, and a message when the carve budget skipped relief. Disabled with an explanation when the build carries no `relief` data (older mod).
 
 ### Center — Viewport (`Viewport3D.tsx`)
-- Build plate: a picker with three common sizes per printer type (FDM 220×220, 256×256, 350×350 mm; resin 130×80, 192×120, 218×123 mm; the middle one is the default) and a custom width × depth (20 to 1000 mm, whole millimetres, clamped on blur). The size draws the grid in the viewport and drives the "fits the plate" check; it does not change the geometry, so changing it never re-meshes.
+- Build plate: a picker with six common sizes in one list (130×80, 192×120, 218×123 resin-vat sizes, then 220×220, 256×256 and 350×350 FDM-bed sizes; 256×256 is the default) and a custom width × depth (20 to 1000 mm, whole millimetres, clamped on blur). The size draws the grid in the viewport and drives the "fits the plate" check; it does not change the geometry, so changing it never re-meshes.
 - One `THREE.BufferGeometry` per `ColorBucketMesh`, `meshStandardMaterial` in the bucket color. Positions converted from lattice via `scaleMmPerBlock/16` on the main thread.
 - Modes: shaded, wireframe (inspect greedy meshing and bridges), section cut (Z clipping slider to confirm filled vs. hollow interiors).
 - Large meshes: transfer typed arrays from the worker (transferables); no copies.

@@ -1,7 +1,7 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { ExportToolbar } from "./components/ExportToolbar";
 import { FilamentSlotMapper } from "./components/FilamentSlotMapper";
-import { PrinterModePanel } from "./components/PrinterModePanel";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { Viewport3D } from "./components/Viewport3D";
 import { usePrintStore } from "./store/usePrintStore";
 import { bootstrap } from "./ui/bootstrap";
@@ -67,7 +67,7 @@ export default function App() {
             </p>
           </div>
         </header>
-        <div className="scroll-fade min-h-0 flex-1"><PrinterModePanel /></div>
+        <div className="scroll-fade min-h-0 flex-1"><SettingsPanel /></div>
       </aside>
 
       <aside aria-label="Slots and export" className="glass rise flex min-h-0 flex-col overflow-hidden lg:absolute lg:bottom-4 lg:right-4 lg:top-4 lg:w-[332px] xl:w-[356px]">
