@@ -107,6 +107,15 @@ body {
   .tile:hover { background: var(--color-fill-hover); }
   .tile[aria-checked="true"] { border-color: rgba(52, 211, 153, 0.6); background: var(--color-accent-soft); box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12); }
 
+  /* A scrolling panel body fades out at its bottom edge instead of being cut through a divider. The padding is as tall as
+     the fade, so the last control is fully visible at the end of the scroll. */
+  .scroll-fade {
+    overflow-y: auto;
+    padding-bottom: 36px;
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+  }
+
   .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
   .section + .section { border-top: 1px solid var(--color-line); }
 
@@ -138,7 +147,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18p
   border: 0; box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.28), 0 2px 6px rgba(0, 0, 0, 0.5); transition: box-shadow 160ms var(--ease-out); }
 input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.28), 0 2px 6px rgba(0, 0, 0, 0.5); }
 input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0.25), 0 2px 6px rgba(0, 0, 0, 0.5); }
-input[type="range"]:focus-visible { outline-offset: 4px; }
+/* Focus on a slider is shown on its round thumb, not as a square outline around the track. */
+input[type="range"]:focus-visible { outline: none; }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--color-scene), 0 0 0 5px var(--color-accent), 0 2px 6px rgba(0, 0, 0, 0.5); }
+input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--color-scene), 0 0 0 5px var(--color-accent), 0 2px 6px rgba(0, 0, 0, 0.5); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

@@ -15,7 +15,13 @@ export interface UiOptions {
   /** Surface relief depth in sub-voxels (0 = off) and whether light texels are carved instead of dark. */
   reliefDepth: ReliefDepth;
   reliefInvert: boolean;
+  /** Build plate: one of the three presets for the printer type (0..2), or a custom size. */
+  bedPreset: BedPreset;
+  customBed: Bed;
 }
+
+/** Middle preset of the three for either printer type. */
+export const DEFAULT_BED_PRESET: BedPreset = 1;
 
 /** The one relief depth the UI offers (in sub-voxels / texels). Deeper depths exist in the kernel but are not exposed. */
 export const RELIEF_DEPTH: ReliefDepth = 1;
@@ -29,6 +35,8 @@ export const DEFAULT_UI_OPTIONS: UiOptions = {
   fixNonManifold: true,
   reliefDepth: RELIEF_DEPTH, // on by default; the depth is fixed, only on/off and invert are user choices
   reliefInvert: false,
+  bedPreset: DEFAULT_BED_PRESET,
+  customBed: { x: 250, y: 250 },
 };
 
 export const SCALE_MIN = 1.0;
@@ -75,11 +83,27 @@ export function needsRerun(a: UiOptions, b: UiOptions): boolean {
   );
 }
 
-export interface Bed { name: string; x: number; y: number }
-export const BEDS: Record<PrinterMode, Bed> = {
-  fdm: { name: "Bambu 256 × 256 mm", x: 256, y: 256 },
-  resin: { name: "MSLA vat 220 × 120 mm", x: 220, y: 120 },
+/** Build plate footprint in mm. */
+export interface Bed { x: number; y: number }
+export type BedPreset = 0 | 1 | 2 | "custom";
+
+/** Three common sizes per printer type (FDM beds and resin vats are very different), plus a custom size. */
+export const BED_PRESETS: Record<PrinterMode, readonly [Bed, Bed, Bed]> = {
+  fdm: [{ x: 220, y: 220 }, { x: 256, y: 256 }, { x: 350, y: 350 }],
+  resin: [{ x: 130, y: 80 }, { x: 192, y: 120 }, { x: 218, y: 123 }],
 };
+export const BED_MIN_MM = 20;
+export const BED_MAX_MM = 1000;
+
+/** Round to whole millimetres inside the allowed range; non-numbers fall back to the minimum. */
+export const clampBedMm = (v: number): number => (Number.isFinite(v) ? Math.min(BED_MAX_MM, Math.max(BED_MIN_MM, Math.round(v))) : BED_MIN_MM);
+
+export function bedFor(o: Pick<UiOptions, "printerMode" | "bedPreset" | "customBed">): Bed {
+  if (o.bedPreset === "custom") return { x: clampBedMm(o.customBed.x), y: clampBedMm(o.customBed.y) };
+  return BED_PRESETS[o.printerMode][o.bedPreset];
+}
+
+export const bedLabel = (b: Bed): string => `${b.x} × ${b.y} mm`;
 
 /** Slicer-space bounding box in mm: X = sizeX, Y = sizeZ, Z = sizeY (docs/01 §1). */
 export function modelSizeMm(p: VoxelPayload, scaleMmPerBlock: number): [number, number, number] {

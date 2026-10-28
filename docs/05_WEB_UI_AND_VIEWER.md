@@ -13,7 +13,7 @@ Vite + React 19 + TypeScript; `three`, `@react-three/fiber`, `@react-three/drei`
 - Surface relief: depth Off / 1 / 2 / 3 texels (a depth map: darker areas carve deeper), an Invert toggle, a live "1 texel = x mm · depth y mm" readout, a warning when a texel is finer than a 0.4 mm nozzle on FDM, and a message when the carve budget skipped relief. Disabled with an explanation when the build carries no `relief` data (older mod).
 
 ### Center — Viewport (`Viewport3D.tsx`)
-- Build plate: 256×256 mm (Bambu) or 220×120 mm (resin vat) grid.
+- Build plate: a picker with three common sizes per printer type (FDM 220×220, 256×256, 350×350 mm; resin 130×80, 192×120, 218×123 mm; the middle one is the default) and a custom width × depth (20 to 1000 mm, whole millimetres, clamped on blur). The size draws the grid in the viewport and drives the "fits the plate" check; it does not change the geometry, so changing it never re-meshes.
 - One `THREE.BufferGeometry` per `ColorBucketMesh`, `meshStandardMaterial` in the bucket color. Positions converted from lattice via `scaleMmPerBlock/16` on the main thread.
 - Modes: shaded, wireframe (inspect greedy meshing and bridges), section cut (Z clipping slider to confirm filled vs. hollow interiors).
 - Large meshes: transfer typed arrays from the worker (transferables); no copies.

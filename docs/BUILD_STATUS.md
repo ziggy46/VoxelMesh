@@ -141,3 +141,9 @@ Feature request after G5: make a single-colour print look textured by carving bl
 - **Not done / caveats:** the skill's subagent finish review and documenter were skipped because agents are ruled out for this project (disclosed; DESIGN.md was written by hand). Keyboard focus and contrast were checked by construction (2 px emerald focus ring, muted text 6:1) and the detector, not by a screen-reader or measured pass. Not tested on Safari or Firefox, where `backdrop-filter` and the range-slider styling differ; a solid fallback exists for glass.
 - **Known visual limit:** at 1024 px the panels leave only about 350 px of clear viewport; wider windows give the model more room.
 
+### Build plate picker and panel edge (2026-10-27)
+- **Build plate:** three presets per printer type plus a custom width x depth (`web/src/ui/derive.ts`: `BED_PRESETS`, `bedFor`, `clampBedMm`), a new "Build plate" section, and the plate size now drives the viewport grid and the "fits the plate" message. No brand names in the UI. Changing the plate never re-meshes. 3 new unit tests (278 web tests pass).
+- **Checked in a browser (1024 x 768):** presets render and select, custom inputs accept 300 and clamp an out-of-range 5 to 20 on blur, the readout and viewport plate update, the castle reports "Fits the 300 x 180 mm plate".
+- **Panel edge:** scrolling panel bodies now fade at the bottom with matching padding (`.scroll-fade`) instead of being cut through a divider, and slider keyboard focus is drawn on the round thumb instead of a square outline.
+- **Not done:** the resin presets (130x80, 192x120, 218x123) are my picks for common LCD sizes, not checked against a vendor list; mod and exporters are unchanged. Slicer names still appear in docs and one code comment as compatibility notes (for example the 3MF `model_settings.config` hint), not in the UI.
+

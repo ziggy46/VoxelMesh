@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sampleCastlePayload } from "../../samples/sampleCastlePayload";
 import {
-  BEDS, DEFAULT_UI_OPTIONS, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
+  BED_PRESETS, DEFAULT_UI_OPTIONS, bedFor, bedLabel, clampBedMm, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
   toMeshingOptions, totalIssues, texelMm, hasReliefData,
 } from "../../ui/derive";
 import { gzip, serializePayload } from "../../payload/loader";
@@ -58,15 +58,37 @@ describe("relief options", () => {
   });
 });
 
+describe("build plate", () => {
+  it("offers three presets per printer type, defaulting to the middle one", () => {
+    expect(BED_PRESETS.fdm.map(bedLabel)).toEqual(["220 × 220 mm", "256 × 256 mm", "350 × 350 mm"]);
+    expect(BED_PRESETS.resin.map(bedLabel)).toEqual(["130 × 80 mm", "192 × 120 mm", "218 × 123 mm"]);
+    expect(bedFor(DEFAULT_UI_OPTIONS)).toEqual({ x: 256, y: 256 });
+    expect(bedFor({ ...DEFAULT_UI_OPTIONS, printerMode: "resin" })).toEqual({ x: 192, y: 120 });
+    expect(bedFor({ ...DEFAULT_UI_OPTIONS, bedPreset: 0 })).toEqual({ x: 220, y: 220 });
+  });
+  it("uses and clamps a custom size", () => {
+    const custom = { ...DEFAULT_UI_OPTIONS, bedPreset: "custom" as const };
+    expect(bedFor({ ...custom, customBed: { x: 300, y: 180 } })).toEqual({ x: 300, y: 180 });
+    expect(bedFor({ ...custom, customBed: { x: 5, y: 99999 } })).toEqual({ x: 20, y: 1000 });
+    expect(bedFor({ ...custom, customBed: { x: 250.6, y: 250.4 } })).toEqual({ x: 251, y: 250 });
+    expect(clampBedMm(Number.NaN)).toBe(20);
+  });
+  it("never triggers a re-mesh: the plate does not change the geometry", () => {
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, bedPreset: 2 })).toBe(false);
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, bedPreset: "custom", customBed: { x: 400, y: 400 } })).toBe(false);
+  });
+});
+
 describe("size, bed and estimates", () => {
   it("maps dimensions to slicer axes (X, Z-depth, Y-height) and scales", () => {
     expect(modelSizeMm(sampleCastlePayload, 4)).toEqual([96, 96, 64]);
     expect(fmtSize([96, 96, 64])).toBe("96.0 × 96.0 × 64.0 mm");
   });
   it("compares against the bed footprint only", () => {
-    expect(fitsBed([250, 250, 300], BEDS.fdm)).toBe(true);
-    expect(fitsBed([257, 100, 10], BEDS.fdm)).toBe(false);
-    expect(fitsBed([221, 100, 10], BEDS.resin)).toBe(false);
+    const fdm = bedFor(DEFAULT_UI_OPTIONS); // 256 x 256 by default
+    expect(fitsBed([250, 250, 300], fdm)).toBe(true);
+    expect(fitsBed([257, 100, 10], fdm)).toBe(false);
+    expect(fitsBed([221, 100, 10], bedFor({ ...DEFAULT_UI_OPTIONS, printerMode: "resin", bedPreset: 2 }))).toBe(false); // 218 x 123
   });
   it("estimates volume and PLA mass: one 4 mm block is 0.064 cm3 = 0.079 g", () => {
     const e = estimate([report()], 4);

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, type ElementRef } from "react";
 import * as THREE from "three";
 import { usePrintStore, type ViewMode } from "../store/usePrintStore";
 import { loadFile } from "../ui/files";
-import { BEDS, slotHex, type Bed } from "../ui/derive";
+import { bedFor, slotHex, type Bed } from "../ui/derive";
 import { IconAlert, IconCube, IconDownload } from "../ui/kit";
 
 const MODES: Array<{ id: ViewMode; label: string }> = [
@@ -94,7 +94,7 @@ export function Viewport3D() {
   const setViewMode = usePrintStore((s) => s.setViewMode);
   const setSectionMm = usePrintStore((s) => s.setSectionMm);
 
-  const bed = BEDS[options.printerMode];
+  const bed = bedFor(options);
   const reach = Math.max(Math.hypot(bed.x, bed.y), 300); // camera distance: far enough for either plate
   const k = options.scaleMmPerBlock / 16;
 
@@ -147,7 +147,7 @@ export function Viewport3D() {
     <section aria-label="3D preview" className="relative h-full w-full">
       <div ref={wrap} tabIndex={0} role="application" aria-label="3D view. Drag to orbit, scroll to zoom, arrow keys to pan." className="absolute inset-0 outline-offset-[-3px]">
         <Canvas
-          key={options.printerMode}
+          key={`${options.printerMode}-${bed.x}x${bed.y}`}
           gl={{ localClippingEnabled: true, antialias: true }}
           camera={{ position: [bed.x / 2, reach * 0.6, -bed.y / 2 + reach * 0.9], fov: 40, near: 1, far: 5000 }}
         >

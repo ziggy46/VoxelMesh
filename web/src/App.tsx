@@ -67,11 +67,11 @@ export default function App() {
             </p>
           </div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto"><PrinterModePanel /></div>
+        <div className="scroll-fade min-h-0 flex-1"><PrinterModePanel /></div>
       </aside>
 
       <aside aria-label="Slots and export" className="glass rise flex min-h-0 flex-col overflow-hidden lg:absolute lg:bottom-4 lg:right-4 lg:top-4 lg:w-[332px] xl:w-[356px]">
-        <div className="min-h-0 flex-1 overflow-y-auto"><FilamentSlotMapper /></div>
+        <div className="scroll-fade min-h-0 flex-1"><FilamentSlotMapper /></div>
         <ExportToolbar />
       </aside>
 
