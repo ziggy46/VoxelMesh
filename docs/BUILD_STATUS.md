@@ -154,3 +154,9 @@ Feature request after G5: make a single-colour print look textured by carving bl
 - **Checked in a browser:** the Printer section is gone, six plate tiles plus custom render, and with the wall set to 0 and fill off the castle's volume drops from 141.0 to 126.6 cm3, the helper text changes and the nozzle warning for relief disappears. 280 web tests pass.
 - **Behaviour change to know about:** resin users no longer get "no fill" for free; they must turn "Fill hollow interiors" off (and lower the wall) themselves. The app still adds no resin drain holes.
 
+
+### Glass/leaves filters, duplicate merging, high-res sampling (2026-10-27)
+- **Mod:** palette entries carry `tags` (`glass`, `leaves`); states with identical content merge into one entry (`PaletteEntry.contentKey`); relief sampling averages each texel's pixel footprint so 32x/64x packs are smoothed (`ReliefSampler.footprintLuma`, identical to before at 16 px). 47 JUnit tests pass; jar rebuilt and copied into the Prism mods folder.
+- **Web:** new "Include glass" / "Include leaves" switches backed by `worker/meshingKernel/filters.ts` (`isIncluded`), used by the grid, relief and the slot counts. Loader validates `tags`. 291 web tests pass (289 plus 2 CI-skipped); typecheck and production build clean.
+- **Checked in a browser on the real house payload** (glass tagged by hand): glass switch enabled, leaves switch disabled ("No leaves in this build"); glass off dropped slots 4 to 3 and volume 5.2 to 5.0 cm3, windows become openings.
+- **Not verified in game:** tags and merging on real blocks (including modded glass), high-res pack output on a real 32x/64x pack, the clickable chat buttons, clipboard tier and `/vm save` buttons. Per-face colours and entity capture were chosen but not built; they need a design decision first.

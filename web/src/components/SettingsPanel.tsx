@@ -3,7 +3,7 @@ import { useId, useRef, useState } from "react";
 import { SAMPLES } from "../samples";
 import { usePrintStore } from "../store/usePrintStore";
 import { loadFile } from "../ui/files";
-import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasReliefData, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
+import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
 import { IconChevron, IconFile, IconFilter, IconLayers, IconPlate, IconPrinter, IconRuler, IconUpload, Notice, Section, SwitchRow } from "../ui/kit";
 
 export function SettingsPanel() {
@@ -101,6 +101,10 @@ export function SettingsPanel() {
       <Section icon={<IconFilter width={16} height={16} />} title="Filters">
         <SwitchRow label="Include fluids" hint="Water and lava become solid slabs" checked={options.includeFluids} onChange={(v) => set("includeFluids", v)} />
         <SwitchRow label="Include foliage" hint="Flowers and crops as small stylised boxes" checked={options.includeFoliage} onChange={(v) => set("includeFoliage", v)} />
+        <SwitchRow label="Include glass" hint={hasTag(payload, "glass") ? "Turn off to make windows real openings" : "No glass in this build"}
+          checked={options.includeGlass} disabled={!hasTag(payload, "glass")} onChange={(v) => set("includeGlass", v)} />
+        <SwitchRow label="Include leaves" hint={hasTag(payload, "leaves") ? "Leaves print as solid cubes; turn off to skip tree canopies" : "No leaves in this build"}
+          checked={options.includeLeaves} disabled={!hasTag(payload, "leaves")} onChange={(v) => set("includeLeaves", v)} />
         <SwitchRow label="Fix non-manifold edges" hint="Adds or recolours single sub-voxels where parts only touch at an edge" checked={options.fixNonManifold} onChange={(v) => set("fixNonManifold", v)} />
       </Section>
 

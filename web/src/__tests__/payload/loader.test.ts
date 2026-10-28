@@ -122,3 +122,24 @@ describe("palette relief field", () => {
     expect(() => parsePayload(small())).not.toThrow();
   });
 });
+
+describe("palette tags field", () => {
+  const withTags = (tags: unknown) => {
+    const p = clone(small()) as any;
+    p.palette[1].tags = tags;
+    return p;
+  };
+  it("accepts a short list of strings and keeps it", () => {
+    expect(parsePayload(withTags(["glass"])).payload.palette[1]!.tags).toEqual(["glass"]);
+  });
+  it("rejects a non-array, non-string items, too many or too long tags", () => {
+    expect(() => parsePayload(withTags("glass"))).toThrow(/tags/);
+    expect(() => parsePayload(withTags([1]))).toThrow(/tags/);
+    expect(() => parsePayload(withTags(Array.from({ length: 17 }, () => "x")))).toThrow(/tags/);
+    expect(() => parsePayload(withTags(["x".repeat(33)]))).toThrow(/tags/);
+  });
+  it("payloads without tags still load", () => {
+    expect(() => parsePayload(small())).not.toThrow();
+  });
+});
+

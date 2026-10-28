@@ -114,4 +114,70 @@ class ReliefSamplerTest {
         List<PaletteEntry> bad = List.of(new PaletteEntry("a", "A", "#112233", Category.SOLID, List.of(new int[] {0, 0, 0, 16, 16, 16}), new byte[10]));
         assertThrows(IllegalArgumentException.class, () -> PayloadWriter.toJson(h, 1, 1, 1, bad, new char[] {1}));
     }
+
+    /** w x w texture where every s x s block of pixels shares one grey level ((blockX + blockY * 16) * 8, distinct per block). */
+    private static int[] blocky(int w) {
+        int s = w / 16;
+        int[] px = new int[w * w];
+        for (int y = 0; y < w; y++)
+            for (int x = 0; x < w; x++) {
+                int g = ((x / s) + (y / s) * 16) * 8 % 256;
+                px[x + y * w] = 0xFF000000 | g << 16 | g << 8 | g;
+            }
+        return px;
+    }
+
+    @Test
+    void highResolutionPacksAreAveragedOverEachTexelNotSampledAtOnePixel() {
+        float[] xyz = {0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1};
+        float[] uv = {0, 0, 1, 0, 1, 1, 0, 1};
+        for (int w : new int[] {32, 64}) {
+            byte[] out = ReliefSampler.sampleFace(1, xyz, uv, blocky(w), w, w);
+            assertNotNull(out);
+            for (int b = 0; b < 16; b++)
+                for (int a = 0; a < 16; a++) assertEquals(((a + b * 16) * 8 % 256), out[a + b * 16] & 0xFF, w + "px texel " + a + "," + b);
+        }
+    }
+
+    @Test
+    void aTexelThatCoversMixedPixelsGetsTheirMean() {
+        // 32x32: texel (0,0) covers pixels (0..1, 0..1) with greys 0, 100, 200, 100 -> mean 100
+        int[] px = new int[32 * 32];
+        java.util.Arrays.fill(px, 0xFF000000 | 50 << 16 | 50 << 8 | 50);
+        int[] g = {0, 100, 200, 100};
+        for (int i = 0; i < 4; i++) px[(i % 2) + (i / 2) * 32] = 0xFF000000 | g[i] << 16 | g[i] << 8 | g[i];
+        float[] xyz = {0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1};
+        float[] uv = {0, 0, 1, 0, 1, 1, 0, 1};
+        byte[] out = ReliefSampler.sampleFace(1, xyz, uv, px, 32, 32);
+        assertEquals(100, out[0] & 0xFF, "plain centre-pixel sampling would read 0 or 200");
+        assertEquals(50, out[1] & 0xFF);
+    }
+
+    @Test
+    void contentKeyIgnoresIdAndNameButNotWhatGetsPrinted() {
+        java.util.List<int[]> full = java.util.List.of(new int[] {0, 0, 0, 16, 16, 16});
+        byte[] relief = new byte[1536];
+        PaletteEntry a = new PaletteEntry("minecraft:spruce_leaves[distance=1]", "Spruce Leaves", "#2F4B2F", Category.SOLID, full, relief, java.util.List.of(PaletteEntry.LEAVES));
+        PaletteEntry b = new PaletteEntry("minecraft:spruce_leaves[distance=4]", "Spruce Leaves", "#2F4B2F", Category.SOLID, full, relief.clone(), java.util.List.of(PaletteEntry.LEAVES));
+        assertEquals(a.contentKey(), b.contentKey());
+        assertNotEquals(a.contentKey(), new PaletteEntry("x", "n", "#2F4B30", Category.SOLID, full, relief, java.util.List.of(PaletteEntry.LEAVES)).contentKey(), "colour");
+        assertNotEquals(a.contentKey(), new PaletteEntry("x", "n", "#2F4B2F", Category.PARTIAL, full, relief, java.util.List.of(PaletteEntry.LEAVES)).contentKey(), "category");
+        assertNotEquals(a.contentKey(), new PaletteEntry("x", "n", "#2F4B2F", Category.SOLID, java.util.List.of(new int[] {0, 0, 0, 16, 8, 16}), relief, java.util.List.of(PaletteEntry.LEAVES)).contentKey(), "boxes");
+        byte[] other = new byte[1536];
+        other[7] = 1;
+        assertNotEquals(a.contentKey(), new PaletteEntry("x", "n", "#2F4B2F", Category.SOLID, full, other, java.util.List.of(PaletteEntry.LEAVES)).contentKey(), "relief");
+        assertNotEquals(a.contentKey(), new PaletteEntry("x", "n", "#2F4B2F", Category.SOLID, full, relief, java.util.List.of()).contentKey(), "tags");
+    }
+
+    @Test
+    void tagsAreWrittenOnlyWhenPresent() {
+        java.util.List<int[]> full = java.util.List.of(new int[] {0, 0, 0, 16, 16, 16});
+        java.util.List<PaletteEntry> pal = java.util.List.of(
+            new PaletteEntry("minecraft:glass", "Glass", "#B0D6DB", Category.SOLID, full, null, java.util.List.of(PaletteEntry.GLASS)),
+            new PaletteEntry("minecraft:stone", "Stone", "#7D7D7D", Category.SOLID, full));
+        PayloadWriter.Header h = new PayloadWriter.Header("T", "1.21.1", "2026-01-01T00:00:00Z", 0, 0, 0);
+        JsonObject o = JsonParser.parseString(new String(PayloadWriter.toJson(h, 1, 1, 1, pal, new char[] {1}), StandardCharsets.UTF_8)).getAsJsonObject();
+        assertEquals("glass", o.getAsJsonArray("palette").get(1).getAsJsonObject().getAsJsonArray("tags").get(0).getAsString());
+        assertFalse(o.getAsJsonArray("palette").get(2).getAsJsonObject().has("tags"));
+    }
 }

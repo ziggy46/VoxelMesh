@@ -3,6 +3,7 @@ package com.voxelmesh.util;
 import com.voxelmesh.core.BoxQuantizer;
 import com.voxelmesh.core.Category;
 import com.voxelmesh.core.ColorMath;
+import com.voxelmesh.core.PaletteEntry;
 import com.voxelmesh.core.ReliefSampler;
 import com.voxelmesh.mixin.SpriteContentsAccessor;
 import java.util.ArrayList;
@@ -19,7 +20,12 @@ import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.texture.SpriteContents;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.block.Block;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.registry.tag.TagKey;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.random.Random;
@@ -37,7 +43,11 @@ public final class BlockGeometryExtractor {
     private static final List<int[]> FOLIAGE_BOXES = List.of(new int[] {4, 0, 4, 12, 10, 12});
 
     /** `relief` is 1536 luma bytes for full-cube blocks (see ReliefSampler), else null. */
-    public record StateInfo(Category category, List<int[]> boxes, int rgb, byte[] relief) {}
+    public record StateInfo(Category category, List<int[]> boxes, int rgb, byte[] relief, List<String> tags) {}
+
+    /** Fabric's convention tags for glass; mods that tag their glass this way are covered without knowing them. */
+    private static final TagKey<Block> GLASS_BLOCKS = TagKey.of(RegistryKeys.BLOCK, Identifier.of("c", "glass_blocks"));
+    private static final TagKey<Block> GLASS_PANES = TagKey.of(RegistryKeys.BLOCK, Identifier.of("c", "glass_panes"));
 
     private final Map<BlockState, StateInfo> cache = new HashMap<>();
     private final Set<BlockState> invisible = new HashSet<>();
@@ -76,7 +86,18 @@ public final class BlockGeometryExtractor {
             }
         }
         byte[] relief = category == Category.SOLID ? sampleRelief(state) : null;
-        return new StateInfo(category, boxes, baseColor(state, world, pos), relief);
+        return new StateInfo(category, boxes, baseColor(state, world, pos), relief, tagsFor(state));
+    }
+
+    /** Labels the web app can filter on: leaves (solid cubes full of holes) and glass (windows). */
+    private static List<String> tagsFor(BlockState state) {
+        List<String> tags = new ArrayList<>(2);
+        if (state.isIn(BlockTags.LEAVES)) tags.add(PaletteEntry.LEAVES);
+        // Untagged modded glass is still caught by its id.
+        if (state.isIn(GLASS_BLOCKS) || state.isIn(GLASS_PANES) || Registries.BLOCK.getId(state.getBlock()).getPath().contains("glass")) {
+            tags.add(PaletteEntry.GLASS);
+        }
+        return tags;
     }
 
     private static boolean isPlantLike(BlockState state) {

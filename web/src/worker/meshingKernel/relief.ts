@@ -6,6 +6,7 @@
 import { base64ToBytes, decodeVoxels } from "../../payload/loader";
 import type { MeshingOptions, ReliefDepth, SparseGrid } from "../../types/mesh";
 import { RELIEF_BYTES, type PaletteEntry, type VoxelPayload } from "../../types/voxelPayload";
+import { isIncluded } from "./filters";
 import { getCell, setCell } from "./gridAccess";
 
 const FACE = 256;
@@ -70,7 +71,7 @@ export function applyRelief(grid: SparseGrid, p: VoxelPayload, paletteToBucket: 
 
   const decoded: Array<Uint8Array | null> = p.palette.map((e, i) => {
     if (i === 0 || !e.relief || (paletteToBucket[i] ?? 0) === 0 || e.category === "air" || !isFullCube(e)) return null;
-    if ((e.category === "fluid" && !o.includeFluids) || (e.category === "foliage" && !o.includeFoliage)) return null;
+    if (!isIncluded(e, o)) return null;
     const bytes = base64ToBytes(e.relief);
     return bytes.length === RELIEF_BYTES ? bytes : null;
   });

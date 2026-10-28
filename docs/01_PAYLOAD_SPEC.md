@@ -27,6 +27,8 @@ export interface PaletteEntry {
   boxes: SubVoxelBox[];  // [] for air
   /** Optional, full-cube blocks only: base64 of 1536 luma bytes = six 16x16 face maps (see Surface relief below). */
   relief?: string;
+  /** Optional filter tags. Only "glass" and "leaves" are defined; unknown tags are ignored. Older payloads have none. */
+  tags?: string[];
 }
 
 export interface VoxelPayload {

@@ -84,6 +84,11 @@ public final class PayloadWriter {
                 boxes.add(a);
             }
             o.add("boxes", boxes);
+            if (!e.tags().isEmpty()) {
+                JsonArray tags = new JsonArray();
+                for (String t : e.tags()) tags.add(t);
+                o.add("tags", tags);
+            }
             if (e.relief() != null) {
                 if (e.relief().length != ReliefSampler.TOTAL_BYTES) throw new IllegalArgumentException("relief must be " + ReliefSampler.TOTAL_BYTES + " bytes");
                 o.addProperty("relief", Base64.getEncoder().encodeToString(e.relief()));

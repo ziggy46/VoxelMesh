@@ -36,6 +36,8 @@ public final class PayloadBuilder {
     private final BlockGeometryExtractor extractor = new BlockGeometryExtractor();
     private final MinecraftClient client = MinecraftClient.getInstance();
     private final Map<Key, Integer> index = new HashMap<>();
+    /** Block states that print identically share one palette entry (leaves differing only in `distance`, for example). */
+    private final Map<String, Integer> byContent = new HashMap<>();
     private final List<PaletteEntry> palette = new ArrayList<>();
     private final char[] voxels;
     private final long total;
@@ -82,9 +84,14 @@ public final class PayloadBuilder {
             Key key = new Key(state, tint);
             Integer idx = index.get(key);
             if (idx == null) {
-                if (palette.size() + 1 >= Limits.MAX_PALETTE_ENTRIES) throw new IllegalStateException("too many distinct blocks (palette full)");
-                palette.add(entryFor(state, info, tint));
-                idx = palette.size(); // index 0 is air
+                PaletteEntry entry = entryFor(state, info, tint);
+                idx = byContent.get(entry.contentKey());
+                if (idx == null) {
+                    if (palette.size() + 1 >= Limits.MAX_PALETTE_ENTRIES) throw new IllegalStateException("too many distinct blocks (palette full)");
+                    palette.add(entry);
+                    idx = palette.size(); // index 0 is air
+                    byContent.put(entry.contentKey(), idx);
+                }
                 index.put(key, idx);
             }
             voxels[(int) cursor] = (char) (int) idx;
@@ -98,7 +105,7 @@ public final class PayloadBuilder {
         // The web app only reads colour and boxes, never the id; the tint suffix just keeps ids unique.
         String id = BlockArgumentParser.stringifyBlockState(state) + (tint == -1 ? "" : "#tint=" + ColorMath.hex(tint).substring(1));
         String name = state.getBlock().getName().getString();
-        return new PaletteEntry(id, name, ColorMath.hex(rgb), info.category() == null ? Category.PARTIAL : info.category(), info.boxes(), info.relief());
+        return new PaletteEntry(id, name, ColorMath.hex(rgb), info.category() == null ? Category.PARTIAL : info.category(), info.boxes(), info.relief(), info.tags());
     }
 
     public Result result() {

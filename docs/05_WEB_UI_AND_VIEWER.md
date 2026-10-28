@@ -9,7 +9,7 @@ Vite + React 19 + TypeScript; `three`, `@react-three/fiber`, `@react-three/drei`
 - Source: sample dropdown (Medieval Watchtower, Redstone Contraption, Floating Sky Island), drag-and-drop `.vxm.json` / `.vxm.json.gz`, automatic `?build=<id>` load from the relay.
 - Printability (there is no printer-type picker): a **Thicken thin parts** slider (minimum wall, 0 to 1.2 mm, default 0.8, 0 = off, with a live "N sub-voxels at this scale" note) and a **Fill hollow interiors** switch (default on). Defaults are safe for any printer; fine resin lowers the wall to about 0.2 to 0.3 mm or 0.
 - Scale slider 1.0–15.0 mm/block (default 4.0) with live bounding box readout (`96.0 × 96.0 × 72.0 mm`) and a warning when it exceeds the bed.
-- Filters: include fluids, include foliage, solidify interiors, fix non-manifold edges.
+- Filters: include fluids, include foliage, include glass, include leaves, fix non-manifold edges. The glass and leaves switches are disabled with a note ("No glass in this build") when the payload has no entries with that tag, including builds from an older mod.
 - Surface relief: depth Off / 1 / 2 / 3 texels (a depth map: darker areas carve deeper), an Invert toggle, a live "1 texel = x mm · depth y mm" readout, a warning when a texel is finer than a 0.4 mm nozzle on FDM, and a message when the carve budget skipped relief. Disabled with an explanation when the build carries no `relief` data (older mod).
 
 ### Center — Viewport (`Viewport3D.tsx`)

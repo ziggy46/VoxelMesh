@@ -9,6 +9,8 @@ export interface UiOptions {
   minWallMm: number;
   includeFluids: boolean;
   includeFoliage: boolean;
+  includeGlass: boolean;
+  includeLeaves: boolean;
   /** Fill sealed hollow cavities solid. */
   solidifyInteriors: boolean;
   fixNonManifold: boolean;
@@ -38,6 +40,8 @@ export const DEFAULT_UI_OPTIONS: UiOptions = {
   minWallMm: DEFAULT_MIN_WALL_MM,
   includeFluids: false,
   includeFoliage: false,
+  includeGlass: true,
+  includeLeaves: true,
   solidifyInteriors: true,
   fixNonManifold: true,
   reliefDepth: RELIEF_DEPTH, // on by default; the depth is fixed, only on/off and invert are user choices
@@ -55,6 +59,9 @@ export const NOZZLE_MM = 0.4;
 /** Width and depth of one relief texel in mm (one sub-voxel). */
 export const texelMm = (scaleMmPerBlock: number): number => scaleMmPerBlock / 16;
 
+/** Does any palette entry carry this tag ("glass" or "leaves")? Builds from an older mod have none. */
+export const hasTag = (p: VoxelPayload | null, tag: string): boolean => !!p && p.palette.some((e) => e.tags?.includes(tag));
+
 /** Does any palette entry carry relief data? Builds from an older mod do not. */
 export const hasReliefData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.relief);
 
@@ -68,6 +75,8 @@ export function toMeshingOptions(u: UiOptions): MeshingOptions {
     scaleMmPerBlock: u.scaleMmPerBlock,
     includeFluids: u.includeFluids,
     includeFoliage: u.includeFoliage,
+    includeGlass: u.includeGlass,
+    includeLeaves: u.includeLeaves,
     fillInteriorCavities: u.solidifyInteriors,
     fixNonManifold: u.fixNonManifold,
     minNozzleWallMm: u.minWallMm,
@@ -84,6 +93,8 @@ export function needsRerun(a: UiOptions, b: UiOptions): boolean {
     ma.minNozzleWallMm !== mb.minNozzleWallMm ||
     ma.includeFluids !== mb.includeFluids ||
     ma.includeFoliage !== mb.includeFoliage ||
+    ma.includeGlass !== mb.includeGlass ||
+    ma.includeLeaves !== mb.includeLeaves ||
     ma.fillInteriorCavities !== mb.fillInteriorCavities ||
     ma.fixNonManifold !== mb.fixNonManifold ||
     ma.reliefDepth !== mb.reliefDepth ||

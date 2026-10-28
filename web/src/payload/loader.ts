@@ -113,6 +113,11 @@ function validatePaletteEntry(e: unknown, i: number): PaletteEntry {
     if (typeof e.relief !== "string") fail(`palette[${i}].relief must be a base64 string`);
     if (base64ToBytes(e.relief).length !== RELIEF_BYTES) fail(`palette[${i}].relief must decode to ${RELIEF_BYTES} bytes`);
   }
+  if (e.tags !== undefined) {
+    if (!Array.isArray(e.tags) || e.tags.length > 16 || !e.tags.every((t: unknown) => typeof t === "string" && t.length <= 32)) {
+      fail(`palette[${i}].tags must be up to 16 short strings`);
+    }
+  }
   return e as unknown as PaletteEntry;
 }
 

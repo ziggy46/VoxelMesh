@@ -4,6 +4,7 @@ import type { MeshingOptions, SparseGrid } from "../../types/mesh";
 import { CHUNK_CELLS, SUB } from "../../types/mesh";
 import type { SubVoxelBox, VoxelPayload } from "../../types/voxelPayload";
 import { dilateThinFeatures } from "./dilate";
+import { isIncluded } from "./filters";
 
 interface Prepared {
   bucket: number;
@@ -25,8 +26,7 @@ export function buildSparseGrid(p: VoxelPayload, o: MeshingOptions, paletteToBuc
   const prepared: Array<Prepared | null> = p.palette.map((e, i) => {
     const bucket = paletteToBucket[i] ?? 0;
     if (i === 0 || bucket === 0 || e.category === "air" || e.boxes.length === 0) return null;
-    if (e.category === "fluid" && !o.includeFluids) return null;
-    if (e.category === "foliage" && !o.includeFoliage) return null;
+    if (!isIncluded(e, o)) return null;
     const boxes = dilateThinFeatures(e.boxes, o).map(
       (b): SubVoxelBox => [b[0], SUB - b[5], b[1], b[3], SUB - b[2], b[4]],
     );

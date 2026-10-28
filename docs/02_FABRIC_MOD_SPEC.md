@@ -42,6 +42,11 @@ Caveat: tint depends on position (biome), so the palette key is `(state, tint)`,
 ### 4.2b Relief maps
 For `solid` states the extractor also samples six 16×16 brightness maps (`docs/01 §3b`): for each face it takes the first model quad from `getQuads(state, direction, …)` whose vertices lie on that face and span all of it, maps each texel centre through the quad's own vertex positions and UVs to a sprite pixel (first animation frame), and stores Rec. 709 luma (mostly transparent pixels count as 128). Overlay layers (the grass side tint) are ignored. `core/ReliefSampler` holds the maths (no Minecraft types, unit-tested); the extractor only feeds it quad data.
 
+### 4.2c Tags, duplicate merging and high-res packs
+- **Tags.** Each palette entry gets `tags`: `leaves` when the block is in `BlockTags.LEAVES`; `glass` when it is in `c:glass_blocks` or `c:glass_panes`, or its id path contains "glass" (modded fallback). The web app uses them for the "Include glass" / "Include leaves" switches. The loader accepts at most 16 tags of at most 32 characters each.
+- **Duplicate merging.** Block states that produce identical content (category, boxes, colour, relief, tags) share one palette entry (`PaletteEntry.contentKey`, which ignores id and name), so a palette no longer carries dozens of look-alike stairs or log axes.
+- **High-res packs.** `ReliefSampler.footprintLuma` averages the `round(w/16) x round(h/16)` pixel footprint of each texel instead of a single pixel, so 32x or 64x resource packs give a smoothed map; at 16 px it is identical to the old behaviour.
+
 ### 4.3 Stretch (v2, out of scope now)
 Per-face colors (grass top vs. side) by splitting multi-colored blocks into face-colored sub-boxes.
 

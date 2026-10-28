@@ -7,6 +7,7 @@ import type { VoxelPayload } from "../types/voxelPayload";
 import { validateAll } from "../validate/manifold";
 import { quantizePaletteToSlots } from "./colorQuantizer";
 import { fillInteriorCavities } from "./meshingKernel/fill";
+import { isIncluded } from "./meshingKernel/filters";
 import { applyRelief } from "./meshingKernel/relief";
 import { buildSparseGrid } from "./meshingKernel/grid";
 import { extractMeshes } from "./meshingKernel/extract";
@@ -58,7 +59,7 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
     const c = new Uint32Array(p.palette.length);
     for (let i = 0; i < voxels.length; i++) c[voxels[i]!]!++;
     p.palette.forEach((e, i) => {
-      if ((e.category === "fluid" && !o.includeFluids) || (e.category === "foliage" && !o.includeFoliage)) c[i] = 0;
+      if (!isIncluded(e, o)) c[i] = 0;
     });
     return c;
   });

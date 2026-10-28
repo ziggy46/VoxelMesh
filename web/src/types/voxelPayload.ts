@@ -18,6 +18,8 @@ export interface PaletteEntry {
    * DOWN, UP, NORTH, SOUTH, WEST, EAST (index = a + b*16; see docs/01 §2).
    */
   relief?: string;
+  /** Optional labels the app can filter on: "glass" and "leaves". */
+  tags?: string[];
 }
 
 export interface VoxelPayload {

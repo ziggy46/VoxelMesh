@@ -86,11 +86,26 @@ public final class ReliefSampler {
                 double s = clamp01(dot(d, e1) / l1), t = clamp01(dot(d, e2) / l2);
                 double u = uv[0] + s * (uv[2] - uv[0]) + t * (uv[6] - uv[0]);
                 double v = uv[1] + s * (uv[3] - uv[1]) + t * (uv[7] - uv[1]);
-                int px = Math.max(0, Math.min(w - 1, (int) Math.floor(u * w)));
-                int py = Math.max(0, Math.min(h - 1, (int) Math.floor(v * h)));
-                out[a + b * N] = (byte) luma(abgr[px + py * w]);
+                out[a + b * N] = (byte) footprintLuma(abgr, w, h, u * w, v * h);
             }
         return out;
+    }
+
+    /**
+     * Mean luma over the texture pixels one texel covers. A 16x16 texture has one pixel per texel (so this is a plain lookup);
+     * a 32x or 64x resource pack has 2x2 or 4x4 pixels per texel, and reading just the centre pixel would alias the texture.
+     * (cx, cy) is the texel centre in pixel units.
+     */
+    static int footprintLuma(int[] abgr, int w, int h, double cx, double cy) {
+        int fx = Math.max(1, Math.round(w / (float) N)), fy = Math.max(1, Math.round(h / (float) N));
+        int x0 = (int) Math.floor(cx - fx / 2.0 + 0.5), y0 = (int) Math.floor(cy - fy / 2.0 + 0.5);
+        long sum = 0;
+        for (int dy = 0; dy < fy; dy++)
+            for (int dx = 0; dx < fx; dx++) {
+                int px = Math.max(0, Math.min(w - 1, x0 + dx)), py = Math.max(0, Math.min(h - 1, y0 + dy));
+                sum += luma(abgr[px + py * w]);
+            }
+        return (int) (sum / ((long) fx * fy));
     }
 
     /** Concatenate six face maps (null = flat) into the 1536-byte payload field. */

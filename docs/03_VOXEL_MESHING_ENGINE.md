@@ -10,6 +10,8 @@ export interface MeshingOptions {
   scaleMmPerBlock: number;        // default 4.0
   includeFluids: boolean;         // default false
   includeFoliage: boolean;        // default false
+  includeGlass?: boolean;         // default true; false drops palette entries tagged "glass"
+  includeLeaves?: boolean;        // default true; false drops palette entries tagged "leaves"
   fillInteriorCavities: boolean;  // default: true; independent of minNozzleWallMm
   fixNonManifold: boolean;        // default true
   minNozzleWallMm: number;        // default 0.8 (safe for any printer); 0 keeps native detail
@@ -47,7 +49,7 @@ Bucket ids are `1..K` (K ≤ 16). `0` is air. There is **no** special infill id:
 
 ## 2. Preset passes
 
-**Filtering.** Skip `fluid` unless `includeFluids`; skip `foliage` unless `includeFoliage`.
+**Filtering** (`filters.ts`, `isIncluded`, shared by the grid, relief and pipeline counts). Air is always skipped. Skip `fluid` unless `includeFluids`; skip `foliage` unless `includeFoliage`; skip entries tagged `glass` when `includeGlass === false`; skip entries tagged `leaves` when `includeLeaves === false` (both default to included, so older payloads without tags are unchanged). Excluded entries get a voxel count of 0 so they never claim a filament slot.
 
 **FDM minimum-feature dilation** (`dilateThinFeatures`, inside `buildSparseGrid`):
 `minSub = ceil((minNozzleWallMm / scaleMmPerBlock) * 16)`. For any box with `maxX−minX < minSub` or `maxZ−minZ < minSub`, expand symmetrically about the box center on the offending axis, clamp to `[0,16]`; if clamping blocks one side, shift the remainder to the other side so the width reaches `minSub` (a box at a block edge must still end up thick enough). Y extents are untouched. At 4 mm/block, 0.8 mm → 4 sub-voxels.

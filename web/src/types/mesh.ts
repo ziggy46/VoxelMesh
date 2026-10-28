@@ -9,6 +9,10 @@ export interface MeshingOptions {
   scaleMmPerBlock: number; // default 4.0
   includeFluids: boolean; // default false
   includeFoliage: boolean; // default false
+  /** Include blocks tagged "glass" (windows). Default true; undefined counts as true. */
+  includeGlass?: boolean;
+  /** Include blocks tagged "leaves". Default true; undefined counts as true. */
+  includeLeaves?: boolean;
   fillInteriorCavities: boolean; // default: true for fdm, false for resin
   fixNonManifold: boolean; // default true
   minNozzleWallMm: number; // default 0.8 (fdm), 0 (resin)

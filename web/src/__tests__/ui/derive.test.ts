@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sampleCastlePayload } from "../../samples/sampleCastlePayload";
 import {
-  BED_PRESETS, DEFAULT_UI_OPTIONS, bedFor, bedLabel, clampBedMm, minSubVoxels, reliefTooFine, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
+  BED_PRESETS, DEFAULT_UI_OPTIONS, hasTag, bedFor, bedLabel, clampBedMm, minSubVoxels, reliefTooFine, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
   toMeshingOptions, totalIssues, texelMm, hasReliefData,
 } from "../../ui/derive";
 import { gzip, serializePayload } from "../../payload/loader";
@@ -73,6 +73,22 @@ describe("relief options", () => {
     expect(hasReliefData(sampleCastlePayload)).toBe(true);
     expect(hasReliefData(null)).toBe(false);
     expect(hasReliefData({ ...sampleCastlePayload, palette: sampleCastlePayload.palette.map((e) => ({ ...e, relief: undefined })) })).toBe(false);
+  });
+});
+
+describe("glass and leaves switches", () => {
+  it("are on by default, reach the engine options, and re-mesh when changed", () => {
+    expect(toMeshingOptions(DEFAULT_UI_OPTIONS)).toMatchObject({ includeGlass: true, includeLeaves: true });
+    expect(toMeshingOptions({ ...DEFAULT_UI_OPTIONS, includeGlass: false })).toMatchObject({ includeGlass: false, includeLeaves: true });
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, includeGlass: false })).toBe(true);
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, includeLeaves: false })).toBe(true);
+  });
+  it("hasTag looks through the palette, and builds from an older mod have none", () => {
+    expect(hasTag(null, "glass")).toBe(false);
+    expect(hasTag(sampleCastlePayload, "glass")).toBe(false);
+    const tagged = { ...sampleCastlePayload, palette: sampleCastlePayload.palette.map((e, i) => (i === 1 ? { ...e, tags: ["glass"] } : e)) };
+    expect(hasTag(tagged, "glass")).toBe(true);
+    expect(hasTag(tagged, "leaves")).toBe(false);
   });
 });
 
