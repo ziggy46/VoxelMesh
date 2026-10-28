@@ -27,6 +27,9 @@ export interface RunResult {
   faceBuckets: Map<number, Uint16Array>;
   faceCells: number | null;
   facesSkipped: { wanted: number; limit: number } | null;
+  entityBuckets: Map<number, number>;
+  entityCells: number | null;
+  entitiesSkipped: { wanted: number; limit: number } | null;
   timings: Record<Stage, number>;
 }
 

@@ -41,6 +41,11 @@ public final class PayloadWriter {
      * @param voxels  index = x + z*sx + y*sx*sz, values are palette indices (0 = air)
      */
     public static byte[] toJson(Header h, int sx, int sy, int sz, List<PaletteEntry> palette, char[] voxels) {
+        return toJson(h, sx, sy, sz, palette, voxels, List.of());
+    }
+
+    /** As above, plus captured entities (written only when there are any). */
+    public static byte[] toJson(Header h, int sx, int sy, int sz, List<PaletteEntry> palette, char[] voxels, List<EntityRecord> entities) {
         if ((long) sx * sy * sz != voxels.length) throw new IllegalArgumentException("voxel array does not match dimensions");
         if (palette.size() + 1 > Limits.MAX_PALETTE_ENTRIES) throw new IllegalArgumentException("palette too large: " + palette.size());
         for (char v : voxels) if (v > palette.size()) throw new IllegalArgumentException("voxel references a missing palette entry: " + (int) v);
@@ -101,6 +106,26 @@ public final class PayloadWriter {
             pal.add(o);
         }
         root.add("palette", pal);
+
+        if (!entities.isEmpty()) {
+            JsonArray list = new JsonArray();
+            for (EntityRecord e : entities) {
+                JsonObject o = new JsonObject();
+                o.addProperty("kind", e.kind());
+                JsonArray colors = new JsonArray();
+                for (String c : e.palette()) colors.add(c);
+                o.add("palette", colors);
+                JsonArray boxes = new JsonArray();
+                for (int[] b : e.boxes()) {
+                    JsonArray a = new JsonArray();
+                    for (int v : b) a.add(v);
+                    boxes.add(a);
+                }
+                o.add("boxes", boxes);
+                list.add(o);
+            }
+            root.add("entities", list);
+        }
 
         byte[] bytes = voxelBytes(voxels);
         root.addProperty("voxelsBase64", Base64.getEncoder().encodeToString(bytes));

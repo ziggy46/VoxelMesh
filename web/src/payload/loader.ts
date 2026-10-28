@@ -1,6 +1,6 @@
 // Payload loader / validator: docs/01_PAYLOAD_SPEC.md §3
-import type { BlockCategory, PaletteEntry, VoxelPayload } from "../types/voxelPayload";
-import { MAX_BLOCKS, MAX_PALETTE_ENTRIES, RELIEF_BYTES, WARN_BLOCKS } from "../types/voxelPayload";
+import type { BlockCategory, PaletteEntry, PayloadEntity, VoxelPayload } from "../types/voxelPayload";
+import { MAX_BLOCKS, MAX_ENTITIES, MAX_ENTITY_BOXES, MAX_PALETTE_ENTRIES, MAX_TOTAL_ENTITY_BOXES, RELIEF_BYTES, WARN_BLOCKS } from "../types/voxelPayload";
 
 export class PayloadError extends Error {
   constructor(message: string) {
@@ -126,6 +126,32 @@ function validatePaletteEntry(e: unknown, i: number): PaletteEntry {
   return e as unknown as PaletteEntry;
 }
 
+function validateEntities(raw: unknown, dims: [number, number, number]): PayloadEntity[] {
+  if (!Array.isArray(raw) || raw.length > MAX_ENTITIES) fail(`entities must be an array of at most ${MAX_ENTITIES}`);
+  const max = dims.map((d) => d * 16);
+  let total = 0;
+  return raw.map((e: unknown, i: number) => {
+    if (!isRecord(e) || typeof e.kind !== "string" || e.kind.length > 100) fail(`entities[${i}] is malformed`);
+    const pal = e.palette;
+    if (!Array.isArray(pal) || pal.length === 0 || pal.length > 4096 || !pal.every((c: unknown) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c))) {
+      fail(`entities[${i}].palette must be 1 to 4096 #RRGGBB colours`);
+    }
+    const boxes = e.boxes;
+    if (!Array.isArray(boxes) || boxes.length > MAX_ENTITY_BOXES) fail(`entities[${i}].boxes must be an array of at most ${MAX_ENTITY_BOXES}`);
+    total += boxes.length;
+    if (total > MAX_TOTAL_ENTITY_BOXES) fail(`entities have more than ${MAX_TOTAL_ENTITY_BOXES} boxes in total`);
+    boxes.forEach((b: unknown, j: number) => {
+      if (!Array.isArray(b) || b.length !== 7 || !b.every((n: unknown) => Number.isInteger(n))) fail(`entities[${i}].boxes[${j}] must be seven integers`);
+      const [x0, y0, z0, x1, y1, z1, ci] = b as number[];
+      if (x0! < 0 || y0! < 0 || z0! < 0 || x1! > max[0]! || y1! > max[1]! || z1! > max[2]! || x1! <= x0! || y1! <= y0! || z1! <= z0!) {
+        fail(`entities[${i}].boxes[${j}] is empty or outside the selection`);
+      }
+      if (ci! < 0 || ci! >= pal.length) fail(`entities[${i}].boxes[${j}] has a colour index outside the palette`);
+    });
+    return e as unknown as PayloadEntity;
+  });
+}
+
 /** Validate an already-parsed JSON value and decode its voxel array. */
 export function parsePayload(raw: unknown): LoadedPayload {
   if (!isRecord(raw)) fail("payload is not an object");
@@ -172,7 +198,8 @@ export function parsePayload(raw: unknown): LoadedPayload {
     voxels[i] = v;
   }
 
-  return { payload: { ...(raw as unknown as VoxelPayload), palette }, voxels, warnings };
+  const entities = raw.entities === undefined ? undefined : validateEntities(raw.entities, [sx, sy, sz]);
+  return { payload: { ...(raw as unknown as VoxelPayload), palette, ...(entities ? { entities } : {}) }, voxels, warnings };
 }
 
 async function pipeBytes(bytes: Uint8Array, stream: GenericTransformStream): Promise<Uint8Array> {

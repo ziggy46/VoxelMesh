@@ -9,7 +9,7 @@ describe("runPipeline", () => {
   it("reports every stage in order and produces valid meshes within the slot limit", () => {
     const seen: Stage[] = [];
     const r = runPipeline(sampleCastlePayload, DEFAULT_FDM_OPTIONS, { maxSlots: 4, onProgress: (s, f) => f === 1 && seen.push(s) });
-    expect(seen).toEqual(STAGES.filter((s) => s !== "relief" && s !== "faces")); // relief only runs when enabled, faces only when a build has them
+    expect(seen).toEqual(STAGES.filter((s) => s !== "relief" && s !== "faces" && s !== "entities")); // relief only runs when enabled, faces and entities only when a build has them
     expect(r.quantization.buckets.length).toBeLessThanOrEqual(4);
     expect(r.meshes.length).toBeGreaterThan(0);
     expect(r.reports.every((x) => x.ok)).toBe(true);
@@ -21,7 +21,7 @@ describe("runPipeline", () => {
     const seen: Stage[] = [];
     const r = runPipeline(sampleCastlePayload, { ...DEFAULT_FDM_OPTIONS, reliefDepth: 1 }, { maxSlots: 4, onProgress: (s, f) => f === 1 && seen.push(s) });
     expect(seen.indexOf("relief")).toBe(seen.indexOf("grid") + 1);
-    expect(seen).toEqual(STAGES.filter((s) => s !== "faces"));
+    expect(seen).toEqual(STAGES.filter((s) => s !== "faces" && s !== "entities"));
     expect(r.reliefCarved).toBeGreaterThan(0);
     expect(r.reliefSkipped).toBeNull();
     expect(r.reports.every((x) => x.ok)).toBe(true);

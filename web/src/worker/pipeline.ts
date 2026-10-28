@@ -1,4 +1,4 @@
-// Pipeline orchestration (docs/00 §1, docs/05 §3): decode -> quantize -> grid -> relief -> faces -> fill -> repair -> mesh -> heal -> validate.
+// Pipeline orchestration (docs/00 §1, docs/05 §3): decode -> quantize -> grid -> relief -> faces -> entities -> fill -> repair -> mesh -> heal -> validate.
 // Pure and synchronous so it runs in the worker, in Node tests and in perf measurements alike.
 import { decodeVoxels } from "../payload/loader";
 import type { QuantizationResult } from "../types/color";
@@ -7,6 +7,7 @@ import type { VoxelPayload } from "../types/voxelPayload";
 import { validateAll } from "../validate/manifold";
 import { quantizePaletteToSlots } from "./colorQuantizer";
 import { fillInteriorCavities } from "./meshingKernel/fill";
+import { applyEntities, planEntityColors } from "./meshingKernel/entities";
 import { applyFaceSkins, faceBuckets as planFaceBuckets, planFaceColors } from "./meshingKernel/faces";
 import { isIncluded } from "./meshingKernel/filters";
 import { applyRelief } from "./meshingKernel/relief";
@@ -15,8 +16,8 @@ import { extractMeshes } from "./meshingKernel/extract";
 import { repairNonManifold } from "./meshingKernel/repair";
 import { healTJunctions } from "./meshingKernel/tjunction";
 
-export type Stage = "decode" | "quantize" | "grid" | "relief" | "faces" | "fill" | "repair" | "mesh" | "heal" | "validate";
-export const STAGES: readonly Stage[] = ["decode", "quantize", "grid", "relief", "faces", "fill", "repair", "mesh", "heal", "validate"];
+export type Stage = "decode" | "quantize" | "grid" | "relief" | "faces" | "entities" | "fill" | "repair" | "mesh" | "heal" | "validate";
+export const STAGES: readonly Stage[] = ["decode", "quantize", "grid", "relief", "faces", "entities", "fill", "repair", "mesh", "heal", "validate"];
 
 export interface PipelineResult {
   quantization: QuantizationResult;
@@ -37,6 +38,12 @@ export interface PipelineResult {
   faceCells: number | null;
   /** Set when face skins were wanted but the build is too large for the recolour budget. */
   facesSkipped: { wanted: number; limit: number } | null;
+  /** Cells per filament slot that captured entities were stamped into (empty when there are none or they were skipped). */
+  entityBuckets: Map<number, number>;
+  /** Cells stamped for entities, or null when there are none or they were skipped. */
+  entityCells: number | null;
+  /** Set when entities were wanted but exceed the stamping budget. */
+  entitiesSkipped: { wanted: number; limit: number } | null;
   /** Wall-clock milliseconds per stage. */
   timings: Record<Stage, number>;
 }
@@ -73,10 +80,12 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
 
   // Face colours join the clustering as extra points; the map and buckets handed back cover the real palette only.
   const facePlan = planFaceColors(p.palette, counts, o);
-  const raw0 = step("quantize", () => quantizePaletteToSlots(facePlan.colors, facePlan.counts, opts.maxSlots));
+  // Entity colours join as further extras after the face colours.
+  const entityPlan = planEntityColors(facePlan.colors, facePlan.counts, p.entities, o);
+  const raw0 = step("quantize", () => quantizePaletteToSlots(entityPlan.colors, entityPlan.counts, opts.maxSlots));
   const n = p.palette.length;
   const quantization: QuantizationResult = {
-    buckets: raw0.buckets.map((b) => ({ ...b, paletteIndices: [...new Set(b.paletteIndices.map((i) => (i < n ? i : ownerOf(facePlan.faceIndex, i))))].sort((a, c) => a - c) })),
+    buckets: raw0.buckets.map((b) => ({ ...b, paletteIndices: [...new Set(b.paletteIndices.map((i) => (i < n ? i : ownerOf(facePlan.faceIndex, i))))].filter((i) => i < n).sort((a, c) => a - c) })),
     paletteToBucketMap: raw0.paletteToBucketMap.slice(0, n),
   };
   const paletteToBucket = Uint16Array.from(quantization.paletteToBucketMap);
@@ -90,6 +99,10 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
   // Face skins recolour what is left of the surface after relief, and before fill and repair so both see the final colours.
   const buckets = planFaceBuckets(facePlan, raw0.paletteToBucketMap, paletteToBucket);
   const skins = buckets.size > 0 ? step("faces", () => applyFaceSkins(grid, p, buckets, o)) : null;
+  // Entities go in last among the geometry steps, into air only, so relief pits and skins are decided on the blocks alone.
+  const ents = entityPlan.indexOf.size > 0
+    ? step("entities", () => applyEntities(grid, p, (hex) => raw0.paletteToBucketMap[entityPlan.indexOf.get(hex) ?? -1] ?? 0, o))
+    : null;
   if (o.fillInteriorCavities) step("fill", () => fillInteriorCavities(grid));
   const repair = o.fixNonManifold ? step("repair", () => repairNonManifold(grid)) : null;
   const raw = step("mesh", () => extractMeshes(grid));
@@ -97,7 +110,8 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
   const reports = step("validate", () => validateAll(meshes));
   return { quantization, paletteToBucket, meshes, reports, repair, reliefCarved: relief && !relief.skipped ? relief.removed : null, reliefSkipped: relief?.skipped ?? null,
     reliefUsedDepth: relief && !relief.skipped ? relief.usedDepth : null,
-    faceBuckets: skins?.skipped ? new Map() : buckets, faceCells: skins && !skins.skipped ? skins.recolored : null, facesSkipped: skins?.skipped ?? null, timings };
+    faceBuckets: skins?.skipped ? new Map() : buckets, faceCells: skins && !skins.skipped ? skins.recolored : null, facesSkipped: skins?.skipped ?? null,
+    entityBuckets: ents?.byBucket ?? new Map(), entityCells: ents && !ents.skipped ? ents.stamped : null, entitiesSkipped: ents?.skipped ?? null, timings };
 }
 
 /** The palette index a face-colour extra belongs to (extras are numbered after the real palette). */

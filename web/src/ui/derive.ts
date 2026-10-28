@@ -11,6 +11,8 @@ export interface UiOptions {
   includeFoliage: boolean;
   includeGlass: boolean;
   includeLeaves: boolean;
+  /** Include captured entities (armor stands, paintings, mobs). */
+  includeEntities: boolean;
   /** Colour each face of blocks like grass and logs with its own filament slot. */
   faceColors: boolean;
   /** Fill sealed hollow cavities solid. */
@@ -44,6 +46,7 @@ export const DEFAULT_UI_OPTIONS: UiOptions = {
   includeFoliage: false,
   includeGlass: true,
   includeLeaves: true,
+  includeEntities: true,
   faceColors: true,
   solidifyInteriors: true,
   fixNonManifold: true,
@@ -65,6 +68,9 @@ export const texelMm = (scaleMmPerBlock: number): number => scaleMmPerBlock / 16
 /** Does any palette entry carry this tag ("glass" or "leaves")? Builds from an older mod have none. */
 export const hasTag = (p: VoxelPayload | null, tag: string): boolean => !!p && p.palette.some((e) => e.tags?.includes(tag));
 
+/** Does the build carry captured entities? Builds from an older mod do not. */
+export const hasEntities = (p: VoxelPayload | null): boolean => !!p && (p.entities?.length ?? 0) > 0;
+
 /** Does any palette entry carry face colours (grass top vs side)? Builds from an older mod do not. */
 export const hasFaceData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.faces && e.faces.length === 6);
 
@@ -83,6 +89,7 @@ export function toMeshingOptions(u: UiOptions): MeshingOptions {
     includeFoliage: u.includeFoliage,
     includeGlass: u.includeGlass,
     includeLeaves: u.includeLeaves,
+    includeEntities: u.includeEntities,
     faceColors: u.faceColors,
     fillInteriorCavities: u.solidifyInteriors,
     fixNonManifold: u.fixNonManifold,
@@ -104,6 +111,7 @@ export function needsRerun(a: UiOptions, b: UiOptions): boolean {
     ma.includeGlass !== mb.includeGlass ||
     ma.includeLeaves !== mb.includeLeaves ||
     ma.faceColors !== mb.faceColors ||
+    ma.includeEntities !== mb.includeEntities ||
     ma.fillInteriorCavities !== mb.fillInteriorCavities ||
     ma.fixNonManifold !== mb.fixNonManifold ||
     ma.reliefDepth !== mb.reliefDepth ||
@@ -175,7 +183,7 @@ export interface SlotMember {
 
 /** Group palette entries by the bucket they currently map to (the effective map, overrides included). */
 export function slotMembers(
-  paletteToBucket: Uint16Array, palette: PaletteEntry[], counts: Uint32Array, faceBuckets?: ReadonlyMap<number, Uint16Array>,
+  paletteToBucket: Uint16Array, palette: PaletteEntry[], counts: Uint32Array, faceBuckets?: ReadonlyMap<number, Uint16Array>, entityBuckets?: ReadonlyMap<number, number>,
 ): Map<number, SlotMember[]> {
   const out = new Map<number, SlotMember[]>();
   for (let i = 1; i < palette.length; i++) {
@@ -197,6 +205,12 @@ export function slotMembers(
       list.push({ paletteIndex: i, name: `${palette[i]!.name} (faces)`, color: hex, count: counts[i] ?? 0, skin: true });
       out.set(b, list);
     }
+  }
+  // Captured entities appear as one pseudo block type in each slot they use.
+  for (const [b, cells] of entityBuckets ?? []) {
+    const list = out.get(b) ?? [];
+    list.push({ paletteIndex: -1, name: "Entities", color: "#9AA3AF", count: Math.max(1, Math.round(cells / 256)), skin: true });
+    out.set(b, list);
   }
   for (const l of out.values()) l.sort((a, b) => b.count - a.count || a.paletteIndex - b.paletteIndex);
   return out;

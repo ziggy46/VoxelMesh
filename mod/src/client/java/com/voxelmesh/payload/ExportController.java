@@ -2,6 +2,7 @@ package com.voxelmesh.payload;
 
 import com.voxelmesh.Chat;
 import com.voxelmesh.ConfigStore;
+import com.voxelmesh.core.EntityRecord;
 import com.voxelmesh.core.LinkBuilder;
 import com.voxelmesh.core.Limits;
 import com.voxelmesh.core.PayloadWriter;
@@ -10,6 +11,7 @@ import com.voxelmesh.core.Selection;
 import com.voxelmesh.VoxelMeshClientMod;
 import com.voxelmesh.core.BrowserOpener;
 import com.voxelmesh.core.RelayClient;
+import com.voxelmesh.entity.EntityCapture;
 import com.voxelmesh.selection.SelectionManager;
 import java.io.IOException;
 import java.net.URI;
@@ -118,11 +120,12 @@ public final class ExportController {
         job = null;
         String note = r.unloadedBlocks() > 0 ? " " + r.unloadedBlocks() + " blocks were in unloaded chunks and were recorded as air." : "";
         Chat.info(client, "Captured " + r.nonAirBlocks() + " blocks, " + r.palette().size() + " block types." + note);
+        java.util.List<EntityRecord> entities = captureEntities(client, b.selection());
 
         String fileName = m == Mode.SAVE ? safe(r.header().title()) : safe(r.header().title()) + "-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         CompletableFuture
             .supplyAsync(() -> {
-                byte[] gz = PayloadWriter.gzip(PayloadWriter.toJson(r.header(), r.sx(), r.sy(), r.sz(), r.palette(), r.voxels()));
+                byte[] gz = PayloadWriter.gzip(PayloadWriter.toJson(r.header(), r.sx(), r.sy(), r.sz(), r.palette(), r.voxels(), entities));
                 try {
                     Path dir = ConfigStore.exportDir();
                     Files.createDirectories(dir);
@@ -145,6 +148,24 @@ public final class ExportController {
                     announceSaved(client, out);
                 }
             }));
+    }
+
+    /**
+     * Entities are an extra: whatever goes wrong here (a modded renderer that throws, a texture that cannot be read) must never
+     * cost the player their block export, so every failure becomes a chat warning and an empty list.
+     */
+    private static java.util.List<EntityRecord> captureEntities(MinecraftClient client, Selection sel) {
+        try {
+            EntityCapture.Result ec = EntityCapture.capture(client, client.world, sel);
+            if (ec.found() == 0) return java.util.List.of();
+            String skipped = ec.skipped() > 0 ? " (" + ec.skipped() + " skipped: players, unreadable textures or over the limit)" : "";
+            Chat.info(client, "Captured " + ec.entities().size() + " of " + ec.found() + " entities" + skipped + ".");
+            return ec.entities();
+        } catch (Throwable t) {
+            VoxelMeshClientMod.LOGGER.warn("Entity capture failed", t);
+            Chat.warn(client, "Entities were skipped: " + t);
+            return java.util.List.of();
+        }
     }
 
     /** `/vm save` only writes the file, so say where it is and give one-click ways to use it. */

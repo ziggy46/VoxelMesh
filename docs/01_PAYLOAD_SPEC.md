@@ -33,6 +33,13 @@ export interface PaletteEntry {
   faces?: string[];
 }
 
+export interface PayloadEntity {
+  kind: string;                 // entity type id, display only: "minecraft:armor_stand"
+  palette: string[];            // "#RRGGBB", at most 4096
+  /** [x0,y0,z0,x1,y1,z1,colourIndex]: half-open cells, 16 per block, MC axes, relative to the selection's minimum corner. */
+  boxes: Array<[number, number, number, number, number, number, number]>;
+}
+
 export interface VoxelPayload {
   version: 1;
   metadata: { title: string; author?: string; mcVersion: string; exportedAt: string;
@@ -43,6 +50,8 @@ export interface VoxelPayload {
   voxelsBase64: string;
   /** Optional CRC32 (hex) of the decoded voxel bytes, verified on load if present */
   voxelsCrc32?: string;
+  /** Optional captured entities (docs/01 §3c). Limits: 2000 entities, 50,000 boxes each, 400,000 in total. */
+  entities?: PayloadEntity[];
 }
 ```
 
@@ -51,6 +60,9 @@ export interface VoxelPayload {
 - Reject: `version !== 1`, `palette[0].id !== "minecraft:air"`, any box with `max <= min` or outside `[0,16]`, decoded byte length ≠ `2*sx*sy*sz`, any voxel index ≥ `palette.length`, CRC mismatch.
 - Warn above 64³ blocks, hard-gate above 128³.
 - Palette ≤ 65,534 entries (bucket id 65535 is reserved and unused; see `docs/03`).
+
+## 3c. Entities (`entities`)
+Entities are not in the voxel array (they have free positions and rotations), so they travel as boxes in the same sub-voxel units as block shapes, relative to the selection's minimum corner. The mod does all the rotation and clipping; the web app only sees integer boxes (invariant 6). No UUIDs, custom names or player data are stored, and players are never captured. Boxes are clipped to the selection and the loader rejects any outside it. Colours are quantised to 16 levels per channel by the mod (the web app clusters them into slots anyway).
 
 ## 3b. Surface relief data (`relief`)
 

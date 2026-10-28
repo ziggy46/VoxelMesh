@@ -24,6 +24,17 @@ export interface PaletteEntry {
   faces?: string[];
 }
 
+/**
+ * One captured entity (armor stand, painting, mob...): its cells as boxes in the same axes and units as block boxes (x east,
+ * y up, z south, 16 sub-voxels per block) but relative to the selection's minimum corner. Each box is
+ * [x0, y0, z0, x1, y1, z1, colourIndex], half-open, with an index into `palette` ("#RRGGBB"). `kind` is for display only.
+ */
+export interface PayloadEntity {
+  kind: string;
+  palette: string[];
+  boxes: Array<[number, number, number, number, number, number, number]>;
+}
+
 export interface VoxelPayload {
   version: 1;
   metadata: {
@@ -39,10 +50,15 @@ export interface VoxelPayload {
   voxelsBase64: string;
   /** Optional CRC32 (hex) of the decoded voxel bytes, verified on load if present */
   voxelsCrc32?: string;
+  /** Optional captured entities (docs/01 §3c). Older payloads have none. */
+  entities?: PayloadEntity[];
 }
 
 /** Hard limits from docs/01 §3. */
 export const MAX_PALETTE_ENTRIES = 65534;
+export const MAX_ENTITIES = 2000;
+export const MAX_ENTITY_BOXES = 50_000;
+export const MAX_TOTAL_ENTITY_BOXES = 400_000;
 export const RELIEF_BYTES = 6 * 16 * 16;
 export const WARN_BLOCKS = 64 * 64 * 64; // warn above 64^3 blocks
 export const MAX_BLOCKS = 128 * 128 * 128; // hard-gate above 128^3 blocks

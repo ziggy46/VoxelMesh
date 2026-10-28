@@ -11,6 +11,7 @@ export interface MeshingOptions {
   includeFluids: boolean;         // default false
   includeFoliage: boolean;        // default false
   faceColors?: boolean;           // default true; colour each face of blocks that carry `faces`
+  includeEntities?: boolean;      // default true; stamp captured entities into empty cells
   includeGlass?: boolean;         // default true; false drops palette entries tagged "glass"
   includeLeaves?: boolean;        // default true; false drops palette entries tagged "leaves"
   fillInteriorCavities: boolean;  // default: true; independent of minNozzleWallMm
@@ -56,6 +57,14 @@ Bucket ids are `1..K` (K ≤ 16). `0` is air. There is **no** special infill id:
 `minSub = ceil((minNozzleWallMm / scaleMmPerBlock) * 16)`. For any box with `maxX−minX < minSub` or `maxZ−minZ < minSub`, expand symmetrically about the box center on the offending axis, clamp to `[0,16]`; if clamping blocks one side, shift the remainder to the other side so the width reaches `minSub` (a box at a block edge must still end up thick enough). Y extents are untouched. At 4 mm/block, 0.8 mm → 4 sub-voxels.
 
 **Resin:** no dilation, no fill. Native proportions preserved.
+
+## 2c. Entities (`entities.ts`, optional)
+
+`MeshingOptions.includeEntities` (default true). Runs after relief and face skins, before fill and repair.
+1. **Plan** (`planEntityColors`): every distinct entity colour joins the Lab K-means as an extra point weighted by its cells / 256 (at least one block), after the face-colour extras.
+2. **Stamp** (`applyEntities`): each entity's boxes are written into a small local array, thin parts are widened to the minimum wall, then every cell whose grid cell is air is written with its slot. A real block always wins, so block geometry, relief pits and skins are never disturbed.
+3. **Minimum wall:** runs along MC x and z (the horizontal axes, as for blocks) shorter than the wall are grown to it, half to each side; a side blocked by a wall or another part hands its share to the other, so a painting on a wall thickens outward. Colours come from the run end each new cell grows from. Y is never grown.
+4. **Budget:** `MAX_ENTITY_CELLS` (2,000,000); over it the entities are skipped entirely and the result says so (`entitiesSkipped`).
 
 ## 2a. Face colours (`faces.ts`, optional)
 

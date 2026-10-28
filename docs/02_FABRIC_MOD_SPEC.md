@@ -50,8 +50,15 @@ For `solid` states the extractor also samples six 16×16 brightness maps (`docs/
 ### 4.2d Face colours
 For `solid` states the extractor averages the sprite of each face's own full-face quad (first quad only, so overlays are ignored). Quads with colour index 0 are biome-tinted: the tint is applied per position in `PayloadBuilder` (like the block colour), not in the cached `StateInfo`. `core/FaceColors.resolve` returns six `#RRGGBB` strings, or an empty list when no two faces are at least 40 apart in RGB (so stone, dirt and leaves stay one colour). Faces with no readable quad use the block colour. `faces` is part of `PaletteEntry.contentKey`, so merging never mixes a grass block with a plain one.
 
+### 4.2e Entity capture (`entity/`, `core/EntityVoxelizer`, `core/BoxMerger`)
+After the block scan, entities in the selection (not players, XP orbs, effect clouds, bobbers, lightning, text displays; at most 400) are captured by asking the game to render each one into a recorder instead of the screen: `EntityRenderDispatcher.render` at (position - selection origin) with a `VertexConsumerProvider` that records every quad and triangle (`CaptureProvider`). Whatever the renderer draws is captured, including armor, held items, paintings and modded entities, and it follows resource packs. Effect layers (glint, eyes, energy swirl, outlines, lines, text, shadows, leash) are skipped.
+- **Colour:** each vertex's texture coordinate is looked up in the layer's texture (`EntityTextures`): a plain image from the resource pack, or a sprite atlas (items, paintings, armor trims) mapped back to its sprite. Texture times vertex colour; texels under 50% alpha are dropped. Textures that exist only on the GPU (player skins, maps) make the layer unusable.
+- **Voxelizing:** triangles are sampled finely and each sample marks its cell, nudged inward so faces on a cell boundary land inside. Empty cells the outside cannot reach become interior and take the nearest shell colour; open surfaces (paintings) stay a thin sheet. Space beyond 4M cells skips the entity. Cells are merged greedily into boxes (at most 20,000 per entity) and clipped to the selection.
+- **Safety:** capture runs in one tick after the blocks, and any failure is a chat warning and an empty list, never a failed block export.
+- **Access:** four mixin accessors (`MultiPhaseAccessor`, `MultiPhaseParametersAccessor`, `TextureBaseInvoker`, `SpriteAtlasAccessor`) read a layer's texture id and an atlas's sprite list.
+- **Limits:** a pose is frozen at capture time; mobs on fire or wearing glinting armor show without the effect; the entity's own lighting and animation state are whatever the game had.
+
 ### 4.3 Stretch (v2, out of scope now)
-Entities (armor stands, item frames, paintings): not captured.
 
 ## 5. `CompanionUploader`
 Java 21 `HttpClient`, 10 s timeout, async; success → open browser; failure → local file fallback. No telemetry, no other hosts. The relay URL must be loopback unless the user edits the config explicitly; a non-loopback host triggers a one-time chat warning.

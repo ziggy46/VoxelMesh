@@ -48,6 +48,10 @@ interface PrintState {
   faceBuckets: Map<number, Uint16Array>;
   faceCells: number | null;
   facesSkipped: { wanted: number; limit: number } | null;
+  /** Entity outcome of the last run: cells per slot, cells stamped, or why they were skipped. */
+  entityBuckets: Map<number, number>;
+  entityCells: number | null;
+  entitiesSkipped: { wanted: number; limit: number } | null;
   timings: Record<string, number> | null;
 
   viewMode: ViewMode;
@@ -91,7 +95,8 @@ export const usePrintStore = create<PrintState>()((set, get) => {
         set({
           status: "ready", progress: null, meshes: r.meshes, buckets: r.buckets, paletteToBucket: r.paletteToBucket,
           reports: r.reports, repair: r.repair, reliefCarved: r.reliefCarved, reliefSkipped: r.reliefSkipped, reliefUsedDepth: r.reliefUsedDepth,
-          faceBuckets: r.faceBuckets, faceCells: r.faceCells, facesSkipped: r.facesSkipped, timings: r.timings,
+          faceBuckets: r.faceBuckets, faceCells: r.faceCells, facesSkipped: r.facesSkipped,
+          entityBuckets: r.entityBuckets, entityCells: r.entityCells, entitiesSkipped: r.entitiesSkipped, timings: r.timings,
         });
       })
       .catch((e: unknown) => {
@@ -110,7 +115,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
     getClient().load(loaded.payload);
     set({
       sourceName: name, payload: loaded.payload, counts, warnings: loaded.warnings, loading: false, loadError: null,
-      overrides: {}, slotColors: {}, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, timings: null,
+      overrides: {}, slotColors: {}, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, entityBuckets: new Map(), entityCells: null, entitiesSkipped: null, timings: null,
       sectionMm: null,
     });
     schedule(true);
@@ -119,7 +124,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
   return {
     sourceName: null, payload: null, counts: null, warnings: [], loading: false, loadError: null,
     options: DEFAULT_UI_OPTIONS, slotCount: 4, overrides: {}, slotColors: {},
-    status: "idle", progress: null, error: null, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, timings: null,
+    status: "idle", progress: null, error: null, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, entityBuckets: new Map(), entityCells: null, entitiesSkipped: null, timings: null,
     viewMode: "shaded", sectionMm: null,
 
     loadBytes: async (name, bytes) => {

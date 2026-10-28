@@ -3,11 +3,11 @@ import { useId, useRef, useState } from "react";
 import { SAMPLES } from "../samples";
 import { usePrintStore } from "../store/usePrintStore";
 import { loadFile } from "../ui/files";
-import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasFaceData, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
+import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasEntities, hasFaceData, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
 import { IconChevron, IconFile, IconFilter, IconLayers, IconPalette, IconPlate, IconPrinter, IconRuler, IconUpload, Notice, Section, SwitchRow } from "../ui/kit";
 
 export function SettingsPanel() {
-  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth, faceCells, facesSkipped } = usePrintStore();
+  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth, faceCells, facesSkipped, entityCells, entitiesSkipped } = usePrintStore();
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleId = useId();
   const scaleId = useId();
@@ -18,6 +18,7 @@ export function SettingsPanel() {
   const fits = size ? fitsBed(size, bed) : true;
   const hasRelief = hasReliefData(payload);
   const hasFaces = hasFaceData(payload);
+  const entityCount = payload?.entities?.length ?? 0;
   const texel = texelMm(options.scaleMmPerBlock);
   const fineForNozzle = reliefTooFine(texel, options.minWallMm);
   const wallId = useId();
@@ -106,6 +107,14 @@ export function SettingsPanel() {
           checked={options.includeGlass} disabled={!hasTag(payload, "glass")} onChange={(v) => set("includeGlass", v)} />
         <SwitchRow label="Include leaves" hint={hasTag(payload, "leaves") ? "Leaves print as solid cubes; turn off to skip tree canopies" : "No leaves in this build"}
           checked={options.includeLeaves} disabled={!hasTag(payload, "leaves")} onChange={(v) => set("includeLeaves", v)} />
+        <SwitchRow label="Include entities" hint={hasEntities(payload) ? `${entityCount} captured: armor stands, paintings, frames, mobs` : "No entities in this build. Re-export it with the updated mod."}
+          checked={options.includeEntities} disabled={!hasEntities(payload)} onChange={(v) => set("includeEntities", v)} />
+        {hasEntities(payload) && options.includeEntities && entitiesSkipped && (
+          <Notice tone="warn">Entities skipped: they would add {entitiesSkipped.wanted.toLocaleString()} cells (limit {entitiesSkipped.limit.toLocaleString()}). Use a smaller selection or turn them off.</Notice>
+        )}
+        {hasEntities(payload) && options.includeEntities && entityCells !== null && (
+          <Notice tone="muted">Added {entityCells.toLocaleString()} cells from {entityCount} entit{entityCount === 1 ? "y" : "ies"}. They only fill empty space, never replace blocks.</Notice>
+        )}
         <SwitchRow label="Fix non-manifold edges" hint="Adds or recolours single sub-voxels where parts only touch at an edge" checked={options.fixNonManifold} onChange={(v) => set("fixNonManifold", v)} />
       </Section>
 

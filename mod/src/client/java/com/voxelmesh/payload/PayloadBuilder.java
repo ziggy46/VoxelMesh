@@ -57,6 +57,8 @@ public final class PayloadBuilder {
         this.voxels = new char[(int) total];
     }
 
+    public Selection selection() { return sel; }
+
     public void cancel() { cancelled = true; }
     public boolean cancelled() { return cancelled; }
     public double progress() { return total == 0 ? 1 : (double) cursor / total; }

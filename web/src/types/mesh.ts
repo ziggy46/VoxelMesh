@@ -13,6 +13,8 @@ export interface MeshingOptions {
   includeGlass?: boolean;
   /** Include blocks tagged "leaves". Default true; undefined counts as true. */
   includeLeaves?: boolean;
+  /** Include captured entities (armor stands, paintings, mobs). Default true; undefined counts as true. */
+  includeEntities?: boolean;
   /** Colour each face of blocks that carry `faces` (grass top vs side) with a thin skin of its own slot. Default true; undefined counts as true. */
   faceColors?: boolean;
   fillInteriorCavities: boolean; // default: true for fdm, false for resin

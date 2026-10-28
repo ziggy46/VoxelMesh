@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sampleCastlePayload } from "../../samples/sampleCastlePayload";
 import {
-  BED_PRESETS, DEFAULT_UI_OPTIONS, hasFaceData, hasTag, bedFor, bedLabel, clampBedMm, minSubVoxels, reliefTooFine, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
+  BED_PRESETS, DEFAULT_UI_OPTIONS, hasEntities, hasFaceData, hasTag, bedFor, bedLabel, clampBedMm, minSubVoxels, reliefTooFine, decodeFragmentData, estimate, fitsBed, fmtSize, modelSizeMm, needsRerun, safeFileName, slotHex, slotMembers, slotName,
   toMeshingOptions, totalIssues, texelMm, hasReliefData,
 } from "../../ui/derive";
 import { gzip, serializePayload } from "../../payload/loader";
@@ -119,6 +119,25 @@ describe("face colours", () => {
     const m = slotMembers(map, palette, counts, new Map([[1, Uint16Array.from([0, 2, 0, 0, 0, 0])]]));
     expect(m.get(1)!.map((x) => x.skin ?? false)).toEqual([false]);
     expect(m.get(2)!).toEqual([{ paletteIndex: 1, name: `${palette[1]!.name} (faces)`, color: "#5A8F3C", count: 9, skin: true }]);
+  });
+});
+
+describe("entities", () => {
+  it("are on by default, reach the engine, and re-mesh when toggled", () => {
+    expect(toMeshingOptions(DEFAULT_UI_OPTIONS)).toMatchObject({ includeEntities: true });
+    expect(toMeshingOptions({ ...DEFAULT_UI_OPTIONS, includeEntities: false })).toMatchObject({ includeEntities: false });
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, includeEntities: false })).toBe(true);
+  });
+  it("hasEntities looks at the payload; older builds have none", () => {
+    expect(hasEntities(null)).toBe(false);
+    expect(hasEntities(sampleCastlePayload)).toBe(false);
+    expect(hasEntities({ ...sampleCastlePayload, entities: [] })).toBe(false);
+    expect(hasEntities({ ...sampleCastlePayload, entities: [{ kind: "x", palette: ["#FF0000"], boxes: [[0, 0, 0, 1, 1, 1, 0]] }] })).toBe(true);
+  });
+  it("slot members show entities as one pseudo block type per slot, flagged own colour", () => {
+    const palette = sampleCastlePayload.palette;
+    const m = slotMembers(new Uint16Array(palette.length), palette, new Uint32Array(palette.length), undefined, new Map([[2, 2560]]));
+    expect(m.get(2)).toEqual([{ paletteIndex: -1, name: "Entities", color: "#9AA3AF", count: 10, skin: true }]);
   });
 });
 
