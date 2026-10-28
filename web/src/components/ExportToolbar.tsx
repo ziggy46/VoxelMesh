@@ -1,13 +1,12 @@
-// Right sidebar, bottom: telemetry and validator-gated export (docs/05 §2). Never a silent bad export (CLAUDE.md §1).
+// Right panel footer: telemetry and validator-gated export (docs/05 §2). Never a silent bad export (CLAUDE.md §1).
 import { useMemo, useState } from "react";
 import { generateBinarySTL, generateMultiColor3MF } from "../exporters/slicerExporters";
 import { usePrintStore } from "../store/usePrintStore";
 import type { ExportBucket } from "../types/color";
 import type { ColorBucketMesh } from "../types/mesh";
 import { estimate, safeFileName, slotHex, slotName, totalIssues } from "../ui/derive";
+import { IconAlert, IconCheck, IconDownload } from "../ui/kit";
 import { validateAll } from "../validate/manifold";
-
-const heading = "mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted";
 
 function save(data: Blob | ArrayBuffer, name: string): void {
   const blob = data instanceof Blob ? data : new Blob([data], { type: "model/stl" });
@@ -94,45 +93,53 @@ export function ExportToolbar() {
     } else void doStl();
   };
 
-  return (
-    <section aria-labelledby="exp-h" className="border-t border-line p-4">
-      <h2 id="exp-h" className={heading}>Model and export</h2>
+  const stat = (label: string, value: string) => (
+    <div className="rounded-xl border border-line bg-fill px-3 py-2">
+      <dt className="text-[11px] text-muted">{label}</dt>
+      <dd className="num font-mono text-[13px] font-semibold text-ink">{ready ? value : "–"}</dd>
+    </div>
+  );
 
-      <dl className="mb-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-        <dt className="text-muted">Vertices</dt><dd className="text-right font-mono">{ready ? verts.toLocaleString() : "–"}</dd>
-        <dt className="text-muted">Triangles</dt><dd className="text-right font-mono">{ready ? tris.toLocaleString() : "–"}</dd>
-        <dt className="text-muted">Volume</dt><dd className="text-right font-mono">{ready ? `${est.volumeCm3.toFixed(1)} cm³` : "–"}</dd>
-        <dt className="text-muted">PLA (solid)</dt><dd className="text-right font-mono">{ready ? `${est.grams.toFixed(0)} g` : "–"}</dd>
+  return (
+    <section aria-label="Model and export" className="border-t border-line bg-black/20 px-5 pb-5 pt-4">
+      <dl className="grid grid-cols-2 gap-2">
+        {stat("Triangles", tris.toLocaleString())}
+        {stat("Vertices", verts.toLocaleString())}
+        {stat("Volume", `${est.volumeCm3.toFixed(1)} cm³`)}
+        {stat("PLA, solid", `${est.grams.toFixed(0)} g`)}
       </dl>
 
-      <div role="status" className={`mb-3 rounded border px-3 py-2 text-xs ${!ready ? "border-line text-muted" : issues === 0 ? "border-ok text-ok" : "border-bad text-bad"}`}>
-        {!ready && <span>Manifold check pending</span>}
-        {ready && issues === 0 && <span><span aria-hidden="true">✓ </span>Watertight: every bucket is a closed manifold</span>}
-        {ready && issues > 0 && (
-          <span>
-            <span aria-hidden="true">✕ </span>{issues} manifold problem{issues === 1 ? "" : "s"}:{" "}
-            {reports.filter((r) => !r.ok).map((r) => `slot ${r.bucketId} (open ${r.openEdges}, non-manifold ${r.nonManifoldEdges}, degenerate ${r.degenerateTriangles}${r.signedVolume > 0 ? "" : ", bad volume"})`).join("; ")}
-          </span>
-        )}
+      <div role="status" className={`mt-3 flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-xs leading-snug ${!ready ? "border-line text-muted" : issues === 0 ? "border-ok/40 bg-ok/10 text-ok" : "border-bad/50 bg-bad/10 text-bad"}`}>
+        {ready && issues === 0 ? <IconCheck width={16} height={16} className="mt-px flex-none" /> : <IconAlert width={16} height={16} className="mt-px flex-none" />}
+        <span className={ready ? "text-ink" : ""}>
+          {!ready && "Manifold check pending"}
+          {ready && issues === 0 && <><strong className="font-semibold">Watertight.</strong> Every colour is a closed manifold.</>}
+          {ready && issues > 0 && (
+            <>
+              <strong className="font-semibold">{issues} manifold problem{issues === 1 ? "" : "s"}:</strong>{" "}
+              {reports.filter((r) => !r.ok).map((r) => `slot ${r.bucketId} (open ${r.openEdges}, non-manifold ${r.nonManifoldEdges}, degenerate ${r.degenerateTriangles}${r.signedVolume > 0 ? "" : ", bad volume"})`).join("; ")}
+            </>
+          )}
+        </span>
       </div>
 
-      <div className="grid gap-2">
-        <button type="button" disabled={!ready || busy !== null} onClick={() => click("3mf")}
-          className="rounded bg-accent px-3 py-2 font-medium text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
-          {busy === "3mf" ? "Building .3MF…" : issues > 0 && ready ? `Download multi-colour .3MF (${issues} problem${issues === 1 ? "" : "s"})` : "Download multi-colour .3MF"}
+      <div className="mt-3 grid gap-2">
+        <button type="button" disabled={!ready || busy !== null} onClick={() => click("3mf")} className="btn-primary flex items-center justify-center gap-2 px-4 py-3 text-[14px]">
+          <IconDownload width={17} height={17} />
+          {busy === "3mf" ? "Building .3MF…" : issues > 0 && ready ? `Download .3MF (${issues} problem${issues === 1 ? "" : "s"})` : "Download .3MF"}
         </button>
-        <button type="button" disabled={!ready || busy !== null} onClick={() => click("stl")}
-          className="rounded border border-line bg-panel-2 px-3 py-2 font-medium hover:border-accent disabled:cursor-not-allowed disabled:opacity-40">
-          {busy === "stl" ? "Building .STL…" : "Download binary .STL (single colour)"}
+        <button type="button" disabled={!ready || busy !== null} onClick={() => click("stl")} className="ctl flex items-center justify-center gap-2 px-4 py-2.5 font-medium disabled:opacity-40">
+          <IconDownload width={16} height={16} className="text-muted" />
+          {busy === "stl" ? "Building .STL…" : "Download .STL, single colour"}
         </button>
       </div>
 
       {pending && (
-        <div role="alertdialog" aria-label="Export with validation errors" className="mt-3 rounded border border-bad bg-panel-2 p-3 text-xs">
-          <p className="mb-2"><strong className="text-bad">{pending.issues} validation problem{pending.issues === 1 ? "" : "s"}.</strong> The slicer may report open edges or need repair. Export anyway?</p>
+        <div role="alertdialog" aria-label="Export with validation errors" className="mt-3 rounded-xl border border-bad/50 bg-bad/10 p-3 text-xs">
+          <p className="mb-2.5 text-ink"><strong className="font-semibold text-bad">{pending.issues} validation problem{pending.issues === 1 ? "" : "s"}.</strong> The slicer may report open edges or need repair. Export anyway?</p>
           <div className="flex gap-2">
-            <button type="button" autoFocus onClick={() => (pending.kind === "3mf" ? void do3mf(true) : void doStl(pending.stl))} className="rounded bg-bad px-3 py-1.5 font-medium text-accent-ink">Export anyway</button>
-            <button type="button" onClick={() => setPending(null)} className="rounded border border-line px-3 py-1.5">Cancel</button>
+            <button type="button" autoFocus onClick={() => (pending.kind === "3mf" ? void do3mf(true) : void doStl(pending.stl))} className="rounded-lg bg-bad px-3 py-1.5 font-semibold text-[#2a0710]">Export anyway</button>
+            <button type="button" onClick={() => setPending(null)} className="ctl px-3 py-1.5">Cancel</button>
           </div>
         </div>
       )}

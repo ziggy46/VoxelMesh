@@ -5,12 +5,14 @@ import { Canvas } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ElementRef } from "react";
 import * as THREE from "three";
 import { usePrintStore, type ViewMode } from "../store/usePrintStore";
+import { loadFile } from "../ui/files";
 import { BEDS, slotHex, type Bed } from "../ui/derive";
+import { IconAlert, IconCube, IconDownload } from "../ui/kit";
 
 const MODES: Array<{ id: ViewMode; label: string }> = [
   { id: "shaded", label: "Shaded" },
   { id: "wireframe", label: "Wireframe" },
-  { id: "section", label: "Section cut" },
+  { id: "section", label: "Section" },
 ];
 
 function plateLines(bed: Bed): Float32Array {
@@ -26,17 +28,17 @@ function Plate({ bed }: { bed: Bed }) {
     <group>
       <mesh position={[bed.x / 2, bed.y / 2, -0.2]}>
         <planeGeometry args={[bed.x, bed.y]} />
-        <meshStandardMaterial color="#1b1f24" roughness={1} />
+        <meshStandardMaterial color="#0d1620" roughness={1} />
       </mesh>
       <lineSegments position={[0, 0, 0.05]}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[lines, 3]} />
         </bufferGeometry>
-        <lineBasicMaterial color="#323941" />
+        <lineBasicMaterial color="#1f3340" />
       </lineSegments>
       <lineSegments position={[0, 0, 0.06]}>
         <edgesGeometry args={[new THREE.PlaneGeometry(bed.x, bed.y).translate(bed.x / 2, bed.y / 2, 0)]} />
-        <lineBasicMaterial color="#ffb020" />
+        <lineBasicMaterial color="#34d399" transparent opacity={0.55} />
       </lineSegments>
     </group>
   );
@@ -138,15 +140,18 @@ export function Viewport3D() {
     if (controls.current && wrap.current) controls.current.listenToKeyEvents(wrap.current);
   }, [empty]);
 
+  const fileInput = useRef<HTMLInputElement>(null);
+  const loadSample = usePrintStore((s) => s.loadSample);
+
   return (
-    <section aria-label="3D preview" className="relative h-[60vh] min-h-[320px] bg-bg lg:h-full">
-      <div ref={wrap} tabIndex={0} role="application" aria-label="3D view. Drag to orbit, scroll to zoom, arrow keys to pan." className="absolute inset-0">
+    <section aria-label="3D preview" className="relative h-full w-full">
+      <div ref={wrap} tabIndex={0} role="application" aria-label="3D view. Drag to orbit, scroll to zoom, arrow keys to pan." className="absolute inset-0 outline-offset-[-3px]">
         <Canvas
           key={options.printerMode}
           gl={{ localClippingEnabled: true, antialias: true }}
           camera={{ position: [bed.x / 2, reach * 0.6, -bed.y / 2 + reach * 0.9], fov: 40, near: 1, far: 5000 }}
         >
-          <hemisphereLight args={["#ffffff", "#30343a", 1.1]} />
+          <hemisphereLight args={["#ffffff", "#22303a", 1.1]} />
           <directionalLight position={[bed.x, bed.x * 1.5, bed.y]} intensity={1.6} />
           <directionalLight position={[-bed.x, bed.x, -bed.y]} intensity={0.5} />
           <group rotation={[-Math.PI / 2, 0, 0]}>
@@ -157,50 +162,53 @@ export function Viewport3D() {
         </Canvas>
       </div>
 
-      <div role="radiogroup" aria-label="View mode" className="absolute left-3 top-3 flex overflow-hidden rounded border border-line bg-panel/90">
+      <div role="radiogroup" aria-label="View mode" className="glass seg absolute left-1/2 top-4 -translate-x-1/2 !rounded-full !p-1">
         {MODES.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            role="radio"
-            aria-checked={mode === m.id}
-            onClick={() => setViewMode(m.id)}
-            className={`px-3 py-1.5 text-xs font-medium ${mode === m.id ? "bg-accent text-accent-ink" : "text-ink hover:bg-panel-2"}`}
-          >
-            {m.label}
-          </button>
+          <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} onClick={() => setViewMode(m.id)} className="!rounded-full !px-4">{m.label}</button>
         ))}
       </div>
 
       {mode === "section" && !empty && (
-        <label className="absolute bottom-3 left-3 right-3 flex items-center gap-3 rounded border border-line bg-panel/90 px-3 py-2 text-xs sm:right-auto sm:w-80">
-          <span className="whitespace-nowrap text-muted">Cut height</span>
-          <input
-            type="range" min={0} max={heightMm} step={0.1} value={clip ?? heightMm}
-            onChange={(e) => setSectionMm(Number(e.target.value))}
-            className="min-w-0 flex-1"
-          />
-          <span className="w-16 text-right font-mono">{(clip ?? heightMm).toFixed(1)} mm</span>
+        <label className="glass absolute bottom-4 left-4 right-4 flex items-center gap-3 !rounded-2xl px-4 py-3 sm:right-auto sm:w-96 lg:left-[352px] xl:left-[376px]">
+          <span className="whitespace-nowrap font-medium text-ink-2">Cut height</span>
+          <input type="range" min={0} max={heightMm} step={0.1} value={clip ?? heightMm} onChange={(e) => setSectionMm(Number(e.target.value))} className="min-w-0 flex-1" />
+          <span className="num w-16 text-right font-mono text-ink">{(clip ?? heightMm).toFixed(1)} mm</span>
         </label>
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center" aria-live="polite">
+      <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center" aria-live="polite">
         {status === "running" && progress && (
-          <div className="rounded border border-line bg-panel/95 px-3 py-1.5 text-xs">
-            <span className="text-muted">Working: </span>
-            <span className="font-mono">{progress.stage}</span>
+          <div className="glass flex items-center gap-2.5 !rounded-full px-4 py-2">
+            <svg viewBox="0 0 24 24" width="16" height="16" className="spin text-accent" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9" /></svg>
+            <span className="text-ink-2">Working on</span>
+            <span className="font-semibold text-ink">{progress.stage}</span>
           </div>
         )}
       </div>
 
       {!hasPayload && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center">
-          <p className="max-w-sm text-muted">Load a build to preview it. Drop a <span className="font-mono">.vxm.json.gz</span> file on the left, or open a sample.</p>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center p-6">
+          <div className="glass rise pointer-events-auto max-w-sm !rounded-[26px] p-7 text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-accent-soft text-accent shadow-[inset_0_0_0_1px_rgba(52,211,153,0.35)]"><IconCube width={30} height={30} /></div>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">Bring a build in</h2>
+            <p className="mt-1.5 text-pretty text-muted">Open the sample to look around, or drop a <span className="font-mono text-ink-2">.vxm.json.gz</span> file anywhere in this window.</p>
+            <div className="mt-5 grid gap-2">
+              <button type="button" onClick={() => loadSample("castle")} className="btn-primary flex items-center justify-center gap-2 px-4 py-3">
+                <IconCube width={17} height={17} /> Open the sample castle
+              </button>
+              <button type="button" onClick={() => fileInput.current?.click()} className="ctl flex items-center justify-center gap-2 px-4 py-2.5 font-medium">
+                <IconDownload width={16} height={16} className="rotate-180 text-muted" /> Choose a file
+              </button>
+              <input ref={fileInput} type="file" accept=".json,.gz,.vxm" className="sr-only" tabIndex={-1} aria-label="Choose a build file" onChange={(e) => { void loadFile(e.target.files?.[0]); e.target.value = ""; }} />
+            </div>
+            <p className="mt-4 text-xs leading-snug text-muted">In Minecraft: look at a corner and press <kbd className="rounded border border-line bg-fill px-1 font-mono text-ink-2">[</kbd>, the opposite corner and <kbd className="rounded border border-line bg-fill px-1 font-mono text-ink-2">]</kbd>, then run <span className="font-mono text-ink-2">/vm export</span>.</p>
+          </div>
         </div>
       )}
       {status === "error" && error && (
-        <div role="alert" className="absolute left-1/2 top-14 w-[min(32rem,90%)] -translate-x-1/2 rounded border border-bad bg-panel p-3 text-sm text-bad">
-          <strong className="font-semibold">Meshing failed.</strong> <span className="text-ink">{error}</span>
+        <div role="alert" className="glass absolute left-1/2 top-20 flex w-[min(32rem,90%)] -translate-x-1/2 items-start gap-3 !rounded-2xl border-bad/50 p-4">
+          <IconAlert className="mt-0.5 flex-none text-bad" />
+          <p><strong className="font-semibold text-bad">Meshing failed.</strong> <span className="text-ink-2">{error}</span></p>
         </div>
       )}
     </section>

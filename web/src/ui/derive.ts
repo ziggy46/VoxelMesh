@@ -17,6 +17,9 @@ export interface UiOptions {
   reliefInvert: boolean;
 }
 
+/** The one relief depth the UI offers (in sub-voxels / texels). Deeper depths exist in the kernel but are not exposed. */
+export const RELIEF_DEPTH: ReliefDepth = 1;
+
 export const DEFAULT_UI_OPTIONS: UiOptions = {
   printerMode: "fdm",
   scaleMmPerBlock: 4.0,
@@ -24,7 +27,7 @@ export const DEFAULT_UI_OPTIONS: UiOptions = {
   includeFoliage: false,
   solidifyInteriors: true,
   fixNonManifold: true,
-  reliefDepth: 0,
+  reliefDepth: RELIEF_DEPTH, // on by default; the depth is fixed, only on/off and invert are user choices
   reliefInvert: false,
 };
 

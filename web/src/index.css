@@ -1,31 +1,148 @@
 @import "tailwindcss";
 
-/* Dark, industrial slicer look. No web fonts: system stack only (CLAUDE.md invariant 8). */
+/*
+ * Frosted dark glass. A deep blue-graphite scene, translucent blurred panels floating over the 3D view, one emerald accent.
+ * System fonts only and no remote assets (CLAUDE.md invariant 8). Numerals in readouts are tabular.
+ */
 @theme {
-  --color-bg: #111315;
-  --color-panel: #181b1f;
-  --color-panel-2: #20242a;
-  --color-line: #2d333b;
-  --color-ink: #e8eaed;
-  --color-muted: #a0a9b4; /* 6.9:1 on --color-panel */
-  --color-accent: #ffb020;
-  --color-accent-ink: #1a1200;
-  --color-ok: #5ee08a;
-  --color-warn: #ffc247;
-  --color-bad: #ff8585;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --color-scene: #070b10;
+  --color-glass: rgba(14, 20, 27, 0.74);
+  --color-ink: #edf2f7;
+  --color-ink-2: #c5d0db;
+  --color-muted: #94a3b2; /* >= 6:1 on the glass over the darkest and the glowing parts of the scene */
+  --color-line: rgba(255, 255, 255, 0.09);
+  --color-line-strong: rgba(255, 255, 255, 0.18);
+  --color-fill: rgba(255, 255, 255, 0.055);
+  --color-fill-hover: rgba(255, 255, 255, 0.095);
+  --color-accent: #34d399;
+  --color-accent-deep: #10b981;
+  --color-accent-ink: #04251b;
+  --color-accent-soft: rgba(52, 211, 153, 0.15);
+  --color-ok: #4ade80;
+  --color-warn: #fbbf24;
+  --color-bad: #fb7185;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html, body, #root { min-height: 100%; }
-@media (min-width: 1024px) { html, body, #root { height: 100%; } }
-body { margin: 0; background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); font-size: 14px; }
+@media (min-width: 1024px) { html, body, #root { height: 100%; overflow: hidden; } }
+body {
+  margin: 0;
+  background: var(--color-scene);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
 
-:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* The scene behind everything: a faint emerald bloom above the plate, a cool glow low right, and a dot grid. */
+.stage {
+  background:
+    radial-gradient(900px 520px at 50% 34%, rgba(52, 211, 153, 0.11), transparent 62%),
+    radial-gradient(760px 520px at 92% 100%, rgba(99, 120, 255, 0.09), transparent 60%),
+    radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1.2px) 0 0 / 22px 22px,
+    var(--color-scene);
+}
 
-input[type="range"] { accent-color: var(--color-accent); }
-input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent); }
+@layer components {
+  .glass {
+    background: var(--color-glass);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid var(--color-line);
+    border-radius: 22px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 28px 60px -28px rgba(0, 0, 0, 0.8),
+      0 4px 14px -4px rgba(0, 0, 0, 0.4);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass { background: rgba(14, 20, 27, 0.97); }
+  }
+
+  /* One surface for every control so they read as a family. */
+  .ctl {
+    background: var(--color-fill);
+    border: 1px solid var(--color-line);
+    border-radius: 12px;
+    transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+  }
+  .ctl:hover:not(:disabled) { background: var(--color-fill-hover); border-color: var(--color-line-strong); }
+  .ctl:active:not(:disabled) { transform: translateY(1px); }
+
+  .btn-primary {
+    background: linear-gradient(180deg, #4ade9c 0%, var(--color-accent-deep) 100%);
+    color: var(--color-accent-ink);
+    border-radius: 12px;
+    font-weight: 650;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 10px 24px -10px rgba(16, 185, 129, 0.65), 0 2px 4px rgba(0, 0, 0, 0.35);
+    transition: filter 160ms var(--ease-out), transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+  }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-primary:active:not(:disabled) { transform: translateY(1px); filter: brightness(0.96); }
+  .btn-primary:disabled { filter: grayscale(0.7) brightness(0.6); box-shadow: none; cursor: not-allowed; }
+
+  /* Segmented control: a track with one raised, accent-tinted choice. */
+  .seg { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: rgba(0, 0, 0, 0.28); border: 1px solid var(--color-line); }
+  .seg > button { flex: 1; padding: 6px 10px; border-radius: 9px; color: var(--color-ink-2); font-weight: 550; white-space: nowrap;
+    transition: background-color 180ms var(--ease-out), color 180ms var(--ease-out), box-shadow 180ms var(--ease-out); }
+  .seg > button:hover { color: var(--color-ink); background: var(--color-fill); }
+  .seg > button[aria-checked="true"] { background: var(--color-accent-soft); color: var(--color-accent);
+    box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.38), 0 2px 8px -2px rgba(0, 0, 0, 0.5); }
+
+  .switch { position: relative; flex: none; width: 36px; height: 21px; border-radius: 999px; background: rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--color-line); transition: background-color 200ms var(--ease-out); }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); transition: transform 220ms var(--ease-out); }
+  .switch[aria-checked="true"] { background: var(--color-accent-deep); border-color: transparent; }
+  .switch[aria-checked="true"]::after { transform: translateX(15px); }
+  .switch:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .tile { border-radius: 14px; border: 1px solid var(--color-line); background: var(--color-fill); text-align: left;
+    transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out); }
+  .tile:hover { background: var(--color-fill-hover); }
+  .tile[aria-checked="true"] { border-color: rgba(52, 211, 153, 0.6); background: var(--color-accent-soft); box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12); }
+
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .section + .section { border-top: 1px solid var(--color-line); }
+
+  /* The one authored moment: panels settle in on first load. */
+  @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+  .rise { animation: rise 520ms var(--ease-out) both; }
+}
+
+/* Parts the browser draws: selection, caret, focus, form controls. In the base layer so component classes can override them. */
+@layer base {
+  ::selection { background: rgba(52, 211, 153, 0.35); color: #fff; }
+  input, select, button { caret-color: var(--color-accent); font: inherit; color: inherit; }
+  button { cursor: pointer; background: none; border: 0; padding: 0; }
+  button:disabled { cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  select { appearance: none; -webkit-appearance: none; }
+  input[type="color"] { -webkit-appearance: none; appearance: none; border: 0; padding: 0; background: none; }
+}
+
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); background-clip: content-box; border: 3px solid transparent; }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 22px; background: transparent; width: 100%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); }
+input[type="range"]::-moz-range-track { height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -6.5px; border-radius: 50%; background: #fff;
+  border: 0; box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.28), 0 2px 6px rgba(0, 0, 0, 0.5); transition: box-shadow 160ms var(--ease-out); }
+input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.28), 0 2px 6px rgba(0, 0, 0, 0.5); }
+input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0.25), 0 2px 6px rgba(0, 0, 0, 0.5); }
+input[type="range"]:focus-visible { outline-offset: 4px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 900ms linear infinite; }

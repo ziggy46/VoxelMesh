@@ -42,10 +42,12 @@ describe("relief options", () => {
   it("maps to meshing options and triggers a re-run only when it matters", () => {
     const on = { ...DEFAULT_UI_OPTIONS, reliefDepth: 2 as const, reliefInvert: true };
     expect(toMeshingOptions(on)).toMatchObject({ reliefDepth: 2, reliefInvert: true });
-    expect(toMeshingOptions(DEFAULT_UI_OPTIONS)).toMatchObject({ reliefDepth: 0, reliefInvert: false });
-    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, reliefDepth: 1 })).toBe(true);
-    expect(needsRerun({ ...DEFAULT_UI_OPTIONS, reliefDepth: 1 }, { ...DEFAULT_UI_OPTIONS, reliefDepth: 1, reliefInvert: true })).toBe(true);
-    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, reliefInvert: true })).toBe(false); // inert while relief is off
+    expect(toMeshingOptions(DEFAULT_UI_OPTIONS)).toMatchObject({ reliefDepth: 1, reliefInvert: false }); // on by default, depth fixed at 1
+    const off = { ...DEFAULT_UI_OPTIONS, reliefDepth: 0 as const };
+    expect(needsRerun(off, DEFAULT_UI_OPTIONS)).toBe(true);
+    expect(needsRerun(DEFAULT_UI_OPTIONS, off)).toBe(true);
+    expect(needsRerun(DEFAULT_UI_OPTIONS, { ...DEFAULT_UI_OPTIONS, reliefInvert: true })).toBe(true);
+    expect(needsRerun(off, { ...off, reliefInvert: true })).toBe(false); // inert while relief is off
   });
   it("texel size is scale/16 and relief data is detected from the palette", () => {
     expect(texelMm(4)).toBe(0.25);
