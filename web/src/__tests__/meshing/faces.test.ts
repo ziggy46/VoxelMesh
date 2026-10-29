@@ -5,7 +5,7 @@ import { B } from "../../samples/blocks";
 import { reliefFrom } from "../../samples/relief";
 import { DEFAULT_FDM_OPTIONS, type MeshingOptions } from "../../types/mesh";
 import type { PaletteEntry } from "../../types/voxelPayload";
-import { applyFaceSkins, coreColor, faceBuckets, faceColorsOf, planFaceColors, skinDepth } from "../../worker/meshingKernel/faces";
+import { applyFaceSkins, coreColor, faceBuckets, faceColorsOf, planFaceColors, skinDepth, texelSourceOf } from "../../worker/meshingKernel/faces";
 import { buildSparseGrid } from "../../worker/meshingKernel/grid";
 import { runPipeline } from "../../worker/pipeline";
 import { cellAt, countCells } from "../helpers";
@@ -15,6 +15,19 @@ const grass = (extra: Partial<PaletteEntry> = {}): PaletteEntry => ({
   id: "test:grass", name: "Grass Block", color: "#6E7A3F", category: "solid", boxes: [[0, 0, 0, 16, 16, 16]],
   faces: [DIRT, GREEN, DIRT, DIRT, DIRT, DIRT], ...extra,
 });
+/** Six per-face values spread over all 1536 texels. */
+const six = (v: number[]) => Uint16Array.from({ length: 1536 }, (_, t) => v[t >> 8]!);
+/** Texture bytes (base64) from a function of (face, a, b) giving 0xRRGGBB. */
+const textureFrom = (fn: (f: number, a: number, b: number) => number): string => {
+  const bytes = new Uint8Array(4608);
+  for (let f = 0; f < 6; f++)
+    for (let b = 0; b < 16; b++)
+      for (let a = 0; a < 16; a++) {
+        const c = fn(f, a, b), at = (f * 256 + a + b * 16) * 3;
+        bytes[at] = c >> 16; bytes[at + 1] = (c >> 8) & 255; bytes[at + 2] = c & 255;
+      }
+  return btoa(String.fromCharCode(...bytes));
+};
 const opts: MeshingOptions = { ...DEFAULT_FDM_OPTIONS, scaleMmPerBlock: 4 };
 const one = (e: PaletteEntry) => new PayloadBuilder("t", [1, 1, 1]).set(0, 0, 0, e).build();
 const tower = (e: PaletteEntry) => new PayloadBuilder("t", [1, 2, 1]).set(0, 0, 0, e).set(0, 1, 0, e).build();
@@ -46,7 +59,8 @@ describe("planFaceColors", () => {
     expect(plan.colors.length).toBe(3);
     expect(plan.colors[2]!.color).toBe(GREEN);
     expect(plan.counts[2]).toBe(7);
-    expect(plan.faceIndex.get(1)).toEqual([0, 2, 0, 0, 0, 0]);
+    expect([...plan.faceIndex.get(1)!]).toEqual([...six([0, 2, 0, 0, 0, 0])]);
+    expect(plan.owners.get(2)).toBe(1);
   });
   it("does nothing when off, when the entry has no faces, or when the filters drop the block", () => {
     expect(planFaceColors(p.palette, counts, { ...opts, faceColors: false }).faceIndex.size).toBe(0);
@@ -61,12 +75,12 @@ describe("planFaceColors", () => {
     const map = Uint16Array.from([0, 1, 1]); // green merged into slot 1
     expect(faceBuckets(plan, map, Uint16Array.from([0, 1])).size).toBe(0);
     const split = faceBuckets(plan, Uint16Array.from([0, 1, 2]), Uint16Array.from([0, 1]));
-    expect([...split.get(1)!]).toEqual([0, 2, 0, 0, 0, 0]);
+    expect([...split.get(1)!]).toEqual([...six([0, 2, 0, 0, 0, 0])]);
   });
 });
 
 describe("applyFaceSkins", () => {
-  const skins = new Map([[1, Uint16Array.from([0, 2, 0, 0, 0, 0])]]); // top face in slot 2
+  const skins = new Map([[1, six([0, 2, 0, 0, 0, 0])]]); // top face in slot 2
   it("recolours the outer cells under the top face and nothing else", () => {
     const p = one(grass());
     const g = buildSparseGrid(p, opts, Uint16Array.from([0, 1]));
@@ -90,7 +104,7 @@ describe("applyFaceSkins", () => {
   it("applies sides before the top so the top keeps the shared rim", () => {
     const p = one(grass());
     const g = buildSparseGrid(p, opts, Uint16Array.from([0, 1]));
-    applyFaceSkins(g, p, new Map([[1, Uint16Array.from([0, 2, 3, 3, 3, 3])]]), opts);
+    applyFaceSkins(g, p, new Map([[1, six([0, 2, 3, 3, 3, 3])]]), opts);
     expect(cellAt(g, 0, 0, 15)).toBe(2); // corner on top and sides: top wins
     expect(cellAt(g, 0, 8, 5)).toBe(3); // plain side
   });
@@ -123,6 +137,63 @@ describe("applyFaceSkins", () => {
     expect(r.recolored).toBe(0);
     expect(r.skipped).toMatchObject({ limit: 100 });
     expect(countCells(g, 2)).toBe(0);
+  });
+});
+
+describe("texel textures", () => {
+  const DARK = 0x6e5a3c, LIGHT = 0xd8c690;
+  // top face: a checkerboard of two tans; every other face one flat colour
+  const sand = (extra: Partial<PaletteEntry> = {}): PaletteEntry => ({
+    id: "test:sand", name: "Sand", color: "#C8B67E", category: "solid", boxes: [[0, 0, 0, 16, 16, 16]],
+    texture: textureFrom((f, a, b) => (f === 1 ? ((a + b) % 2 === 0 ? DARK : LIGHT) : 0xc8b67e)), ...extra,
+  });
+  it("reads a texture as distinct colours per texel, and prefers it over faces", () => {
+    const src = texelSourceOf(sand({ faces: [DIRT, GREEN, DIRT, DIRT, DIRT, DIRT] }))!;
+    expect(src.textured).toBe(true);
+    expect(src.colors).toContain("#6E5A3C");
+    expect(src.colors).toContain("#D8C690");
+    expect(src.colors).toContain("#C8B67E");
+    expect(src.colors[src.index[1 * 256 + 0]!]).toBe("#6E5A3C");
+    expect(src.colors[src.index[1 * 256 + 1]!]).toBe("#D8C690");
+    expect(src.colors[src.index[0]!]).toBe("#C8B67E");
+    expect(src.core).toMatch(/^#[0-9A-F]{6}$/);
+  });
+  it("is null for a non-cube, and legacy faces still work", () => {
+    expect(texelSourceOf(sand({ boxes: [[0, 0, 0, 16, 8, 16]] }))).toBeNull();
+    const legacy = texelSourceOf(grass())!;
+    expect(legacy.textured).toBe(false);
+    expect(legacy.colors.length).toBe(2);
+  });
+  it("folds a noisy texture down to at most 32 colours", () => {
+    const noisy = sand({ texture: textureFrom((f, a, b) => ((a * 16 + 3) << 16) | ((b * 16 + 5) << 8) | ((f * 40 + a) & 255)) });
+    const src = texelSourceOf(noisy)!;
+    expect(src.colors.length).toBeLessThanOrEqual(32);
+    expect(new Set(src.colors).size).toBe(src.colors.length);
+  });
+  it("skins each exposed texel in its own slot", () => {
+    const p = one(sand());
+    const counts = Uint32Array.from([0, 1]);
+    const plan = planFaceColors(p.palette, counts, opts);
+    const idx = plan.faceIndex.get(1)!;
+    const darkExtra = idx[1 * 256 + 0]!, lightExtra = idx[1 * 256 + 1]!;
+    expect(darkExtra).not.toBe(lightExtra);
+    const map = new Uint16Array(plan.colors.length);
+    map[1] = 1; map[darkExtra] = 2; map[lightExtra] = 3;
+    const fb = faceBuckets(plan, map, Uint16Array.from([0, 1]));
+    expect(fb.get(1)![1 * 256 + 0]).toBe(2);
+    expect(fb.get(1)![1 * 256 + 1]).toBe(3);
+    const g = buildSparseGrid(p, opts, Uint16Array.from([0, 1]));
+    applyFaceSkins(g, p, fb, opts);
+    expect(cellAt(g, 0, 15, 15)).toBe(2); // MC x=0, z=0 on top -> slicer (0, 15, 15)
+    expect(cellAt(g, 1, 15, 15)).toBe(3);
+    expect(cellAt(g, 0, 15, 12)).toBe(1);
+  });
+  it("runs in the pipeline with a closed manifold in every colour", () => {
+    const p = new PayloadBuilder("t", [2, 1, 2]).set(0, 0, 0, sand()).set(1, 0, 0, sand()).set(0, 0, 1, B.stone).build();
+    const r = runPipeline(p, opts, { maxSlots: 8 });
+    expect(r.faceCells).toBeGreaterThan(0);
+    expect(r.reports.every((x) => x.ok)).toBe(true);
+    for (const b of r.quantization.buckets) expect(b.paletteIndices.every((i) => i < p.palette.length)).toBe(true);
   });
 });
 

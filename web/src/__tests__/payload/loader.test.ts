@@ -164,3 +164,19 @@ describe("palette faces field", () => {
     expect(() => parsePayload(small())).not.toThrow();
   });
 });
+
+describe("palette texture field", () => {
+  const bytes = (n: number) => btoa(String.fromCharCode(...new Uint8Array(n).fill(90)));
+  const withTexture = (t: unknown) => {
+    const p = clone(small()) as any;
+    p.palette[1].texture = t;
+    return p;
+  };
+  it("accepts 4608 base64 bytes and keeps them", () => {
+    expect(parsePayload(withTexture(bytes(4608))).payload.palette[1]!.texture).toBeTypeOf("string");
+  });
+  it("rejects the wrong length or type", () => {
+    expect(() => parsePayload(withTexture(bytes(1536)))).toThrow(/texture/);
+    expect(() => parsePayload(withTexture(5))).toThrow(/texture/);
+  });
+});

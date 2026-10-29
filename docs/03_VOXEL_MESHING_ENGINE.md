@@ -74,13 +74,15 @@ Bucket ids are `1..K` (K ≤ 16). `0` is air. There is **no** special infill id:
 3. **Minimum wall:** runs along MC x and z (the horizontal axes, as for blocks) shorter than the wall are grown to it, half to each side; a side blocked by a wall or another part hands its share to the other, so a painting on a wall thickens outward. Colours come from the run end each new cell grows from. Y is never grown.
 4. **Budget:** `MAX_ENTITY_CELLS` (2,000,000); over it the entities are skipped entirely and the result says so (`entitiesSkipped`).
 
-## 2a. Face colours (`faces.ts`, optional)
+## 2a. Surface colours (`faces.ts`, optional)
+
+Entries with a `texture` (per-texel RGB, docs/01) skin every exposed texel in its own colour, so sand keeps its grain; entries with only `faces` get the six flat face colours as before. Both are read as a `TexelSource` (at most 32 distinct colours per block type: texels are grouped at 4 bits a channel and rarer groups fold into the nearest). The core colour of a textured block is the mean of its texels. Extras are weighted by the share of the block's cells that wear them, and the clustering uses the square root of every weight (`colorQuantizer`), so a rare colour keeps a slot instead of folding into a large neighbour. The skin budget is `MAX_SKIN_CELLS` = 4,000,000. The rest of this section describes the six-face case, which the texel pass generalises.
 
 `MeshingOptions.faceColors` (default on). Entries with `faces` (full cubes only) get per-face colour skins:
 
 1. **Plan** (`planFaceColors`, before the clustering). The block's own colour becomes its *core*: the face colour closest to the other five (grass: dirt, log: bark). Every other distinct face colour joins the Lab K-means as an extra point weighted like its block type, so skins share slots with everything else. Entries the filters drop add nothing. With the option off or no `faces` in the payload this is the palette unchanged.
 2. **Skin** (`applyFaceSkins`, after relief and before fill/repair). For each block face with its own bucket (a face that clustered into the block's slot needs none), every column whose outside cell is air is recoloured for `skinDepth` cells starting at the first solid cell (at most `reliefDepth` cells down, so a face follows its own relief pits). `skinDepth` = round(0.8 mm / cell size), 1 to 6. Faces are applied sides, then bottom, then top, so a grass block keeps a green rim. Only colours change, never solidity, so bed fit and contacts are untouched. Faces covered by a solid neighbour block are skipped.
-3. **Budget.** `MAX_SKIN_CELLS` (2,000,000). Over it, skins are skipped entirely and the result says so (`facesSkipped`).
+3. **Budget.** `MAX_SKIN_CELLS` (4,000,000). Over it, skins are skipped entirely and the result says so (`facesSkipped`).
 
 Manual slot reassignment moves a block's core only; its skins keep their own slots. Mono (one slot) therefore has no skins.
 

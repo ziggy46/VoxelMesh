@@ -92,7 +92,7 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
   const raw0 = step("quantize", () => quantizePaletteToSlots(entityPlan.colors, entityPlan.counts, opts.maxSlots));
   const n = p.palette.length;
   const quantization: QuantizationResult = {
-    buckets: raw0.buckets.map((b) => ({ ...b, paletteIndices: [...new Set(b.paletteIndices.map((i) => (i < n ? i : ownerOf(facePlan.faceIndex, i))))].filter((i) => i < n).sort((a, c) => a - c) })),
+    buckets: raw0.buckets.map((b) => ({ ...b, paletteIndices: [...new Set(b.paletteIndices.map((i) => (i < n ? i : facePlan.owners.get(i) ?? i)))].filter((i) => i < n).sort((a, c) => a - c) })),
     paletteToBucketMap: raw0.paletteToBucketMap.slice(0, n),
   };
   const paletteToBucket = Uint16Array.from(quantization.paletteToBucketMap);
@@ -121,10 +121,4 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
     faceBuckets: skins?.skipped ? new Map() : buckets, faceCells: skins && !skins.skipped ? skins.recolored : null, facesSkipped: skins?.skipped ?? null,
     modelBuckets: planModelBuckets(p.palette, modelPlan, raw0.paletteToBucketMap, paletteToBucket), modelBlocks: templates.size,
     entityBuckets: ents?.byBucket ?? new Map(), entityCells: ents && !ents.skipped ? ents.stamped : null, entitiesSkipped: ents?.skipped ?? null, timings };
-}
-
-/** The palette index a face-colour extra belongs to (extras are numbered after the real palette). */
-function ownerOf(faceIndex: Map<number, number[]>, extra: number): number {
-  for (const [owner, idx] of faceIndex) if (idx.includes(extra)) return owner;
-  return extra;
 }

@@ -1,6 +1,6 @@
 // Payload loader / validator: docs/01_PAYLOAD_SPEC.md §3
 import type { BlockCategory, PaletteEntry, PayloadEntity, VoxelPayload } from "../types/voxelPayload";
-import { MAX_BLOCKS, MAX_ENTITIES, MAX_ENTITY_BOXES, MAX_PALETTE_ENTRIES, MAX_TOTAL_ENTITY_BOXES, RELIEF_BYTES, WARN_BLOCKS } from "../types/voxelPayload";
+import { MAX_BLOCKS, MAX_ENTITIES, MAX_ENTITY_BOXES, MAX_PALETTE_ENTRIES, MAX_TOTAL_ENTITY_BOXES, RELIEF_BYTES, TEXTURE_BYTES, WARN_BLOCKS } from "../types/voxelPayload";
 
 export class PayloadError extends Error {
   constructor(message: string) {
@@ -117,6 +117,10 @@ function validatePaletteEntry(e: unknown, i: number): PaletteEntry {
     if (!Array.isArray(e.tags) || e.tags.length > 16 || !e.tags.every((t: unknown) => typeof t === "string" && t.length <= 32)) {
       fail(`palette[${i}].tags must be up to 16 short strings`);
     }
+  }
+  if (e.texture !== undefined) {
+    if (typeof e.texture !== "string") fail(`palette[${i}].texture must be a base64 string`);
+    if (base64ToBytes(e.texture).length !== TEXTURE_BYTES) fail(`palette[${i}].texture must decode to ${TEXTURE_BYTES} bytes`);
   }
   if (e.faces !== undefined) {
     if (!Array.isArray(e.faces) || e.faces.length !== 6 || !e.faces.every((c: unknown) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c))) {

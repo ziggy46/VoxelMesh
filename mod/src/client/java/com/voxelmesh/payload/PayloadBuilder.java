@@ -8,6 +8,7 @@ import com.voxelmesh.core.Limits;
 import com.voxelmesh.core.PaletteEntry;
 import com.voxelmesh.core.PayloadWriter;
 import com.voxelmesh.core.Selection;
+import com.voxelmesh.core.TextureSampler;
 import com.voxelmesh.util.BlockGeometryExtractor;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -109,9 +110,11 @@ public final class PayloadBuilder {
         // The web app only reads colour and boxes, never the id; the tint suffix just keeps ids unique.
         String id = BlockArgumentParser.stringifyBlockState(state) + (tint == -1 ? "" : "#tint=" + ColorMath.hex(tint).substring(1));
         String name = state.getBlock().getName().getString();
-        List<String> faces = info.faceRgb() == null ? List.of() : FaceColors.resolve(info.faceRgb(), info.faceTintMask(), tint, rgb);
+        byte[] texture = info.texels() == null ? null : TextureSampler.combine(info.texels(), info.faceTintMask(), tint, rgb);
+        // The texel map says more than six face colours, so `faces` is only worked out when there is no map.
+        List<String> faces = texture != null || info.faceRgb() == null ? List.of() : FaceColors.resolve(info.faceRgb(), info.faceTintMask(), tint, rgb);
         BlockModel model = extractor.modelFor(state, info, tint);
-        return new PaletteEntry(id, name, ColorMath.hex(rgb), info.category() == null ? Category.PARTIAL : info.category(), info.boxes(), info.relief(), info.tags(), faces, model);
+        return new PaletteEntry(id, name, ColorMath.hex(rgb), info.category() == null ? Category.PARTIAL : info.category(), info.boxes(), info.relief(), info.tags(), faces, model, texture);
     }
 
     public Result result() {

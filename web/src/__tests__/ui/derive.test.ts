@@ -116,9 +116,9 @@ describe("face colours", () => {
     map[1] = 1;
     const counts = new Uint32Array(palette.length);
     counts[1] = 9;
-    const m = slotMembers(map, palette, counts, new Map([[1, Uint16Array.from([0, 2, 0, 0, 0, 0])]]));
+    const m = slotMembers(map, palette, counts, new Map([[1, Uint16Array.from({ length: 1536 }, (_, t) => (t >> 8 === 1 ? 2 : 0))]]));
     expect(m.get(1)!.map((x) => x.skin ?? false)).toEqual([false]);
-    expect(m.get(2)!).toEqual([{ paletteIndex: 1, name: `${palette[1]!.name} (faces)`, color: "#5A8F3C", count: 9, skin: true }]);
+    expect(m.get(2)!).toEqual([{ paletteIndex: 1, name: `${palette[1]!.name} (surface)`, color: "#5A8F3C", count: 9, skin: true }]);
   });
 });
 

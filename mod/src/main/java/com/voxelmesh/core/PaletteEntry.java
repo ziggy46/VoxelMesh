@@ -12,8 +12,9 @@ import java.util.stream.Collectors;
  * `faces` is optional: six "#RRGGBB" face colours in Direction order (DOWN, UP, NORTH, SOUTH, WEST, EAST), present only when the
  * faces of a full-cube block really differ (see {@link FaceColors}); empty otherwise.
  * `model` is optional: the shape and colours the game actually draws, for blocks whose hitbox differs from their look.
+ * `texture` is optional: 4608 bytes of per-texel RGB for full-cube blocks (see {@link TextureSampler}); it supersedes `faces`.
  */
-public record PaletteEntry(String id, String name, String color, Category category, List<int[]> boxes, byte[] relief, List<String> tags, List<String> faces, BlockModel model) {
+public record PaletteEntry(String id, String name, String color, Category category, List<int[]> boxes, byte[] relief, List<String> tags, List<String> faces, BlockModel model, byte[] texture) {
     public static final String GLASS = "glass";
     public static final String LEAVES = "leaves";
 
@@ -21,6 +22,11 @@ public record PaletteEntry(String id, String name, String color, Category catego
         tags = tags == null ? List.of() : List.copyOf(tags);
         faces = faces == null ? List.of() : List.copyOf(faces);
         if (!faces.isEmpty() && faces.size() != ReliefSampler.FACES) throw new IllegalArgumentException("faces must be empty or have 6 colours");
+        if (texture != null && texture.length != TextureSampler.TOTAL_BYTES) throw new IllegalArgumentException("texture must be " + TextureSampler.TOTAL_BYTES + " bytes");
+    }
+
+    public PaletteEntry(String id, String name, String color, Category category, List<int[]> boxes, byte[] relief, List<String> tags, List<String> faces, BlockModel model) {
+        this(id, name, color, category, boxes, relief, tags, faces, model, null);
     }
 
     public PaletteEntry(String id, String name, String color, Category category, List<int[]> boxes, byte[] relief, List<String> tags, List<String> faces) {
@@ -48,6 +54,15 @@ public record PaletteEntry(String id, String name, String color, Category catego
         String b = boxes.stream().map(Arrays::toString).collect(Collectors.joining(";"));
         String r = relief == null ? "" : Base64.getEncoder().encodeToString(relief);
         String t = tags.stream().sorted().collect(Collectors.joining(","));
-        return category.json() + "|" + b + "|" + color + "|" + r + "|" + t + "|" + String.join(",", faces) + "|" + (model == null ? "" : model.key());
+        return category.json() + "|" + b + "|" + color + "|" + r + "|" + t + "|" + String.join(",", faces) + "|" + (model == null ? "" : model.key()) + "|" + digest(texture);
+    }
+
+    private static String digest(byte[] bytes) {
+        if (bytes == null) return "";
+        try {
+            return Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

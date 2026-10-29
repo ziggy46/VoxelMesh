@@ -67,7 +67,13 @@ function nameFor(lab: Lab): string {
 interface Point {
   hex: string;
   lab: Lab;
+  /** Voxel count: what the slot reports. */
   weight: number;
+  /**
+   * What the clustering uses: the square root of the count. A plain count lets a sand floor swallow a cherry fence into its
+   * own slot; the root keeps a rare, clearly different colour worth a slot of its own without ignoring how much of it there is.
+   */
+  pull: number;
   indices: number[]; // ascending
 }
 
@@ -86,8 +92,9 @@ export function quantizePaletteToSlots(
     if (color === null || count === 0) continue;
     const hex = color.toUpperCase();
     let p = byHex.get(hex);
-    if (!p) byHex.set(hex, (p = { hex, lab: hexToLab(hex), weight: 0, indices: [] }));
+    if (!p) byHex.set(hex, (p = { hex, lab: hexToLab(hex), weight: 0, pull: 0, indices: [] }));
     p.weight += count;
+    p.pull = Math.sqrt(p.weight);
     p.indices.push(i);
   }
   const points = [...byHex.values()].sort((a, b) => a.indices[0]! - b.indices[0]!); // stable order: lowest palette index
@@ -102,14 +109,14 @@ export function quantizePaletteToSlots(
     // K-means++ seeding: highest weight first, then max w * minDist^2; ties -> lowest index (points are index-ordered).
     const seeds: number[] = [];
     let first = 0;
-    for (let i = 1; i < points.length; i++) if (points[i]!.weight > points[first]!.weight) first = i;
+    for (let i = 1; i < points.length; i++) if (points[i]!.pull > points[first]!.pull) first = i;
     seeds.push(first);
     const minD = points.map((p) => dist2(p.lab, points[first]!.lab));
     while (seeds.length < k) {
       let best = -1, bestScore = -1;
       for (let i = 0; i < points.length; i++) {
         if (seeds.includes(i)) continue;
-        const score = points[i]!.weight * minD[i]!;
+        const score = points[i]!.pull * minD[i]!;
         if (score > bestScore) {
           bestScore = score;
           best = i;
@@ -143,8 +150,8 @@ export function quantizePaletteToSlots(
       const size = new Array<number>(k).fill(0);
       for (let i = 0; i < points.length; i++) {
         const c = assign[i]!, p = points[i]!;
-        sum[c]![0] += p.lab[0] * p.weight; sum[c]![1] += p.lab[1] * p.weight; sum[c]![2] += p.lab[2] * p.weight;
-        w[c]! += p.weight;
+        sum[c]![0] += p.lab[0] * p.pull; sum[c]![1] += p.lab[1] * p.pull; sum[c]![2] += p.lab[2] * p.pull;
+        w[c]! += p.pull;
         size[c]!++;
       }
       for (let c = 0; c < k; c++) {
@@ -191,8 +198,9 @@ export function quantizePaletteToSlots(
         lab = c.members[0]!.lab;
       } else {
         const sum: Lab = [0, 0, 0];
-        for (const m of c.members) for (let a = 0; a < 3; a++) sum[a]! += m.lab[a]! * m.weight;
-        lab = [sum[0] / voxelCount, sum[1] / voxelCount, sum[2] / voxelCount];
+        const pull = c.members.reduce((t, m) => t + m.pull, 0);
+        for (const m of c.members) for (let a = 0; a < 3; a++) sum[a]! += m.lab[a]! * m.pull;
+        lab = [sum[0] / pull, sum[1] / pull, sum[2] / pull];
         hex = labToHex(lab);
       }
       return { indices, voxelCount, hex, lab };

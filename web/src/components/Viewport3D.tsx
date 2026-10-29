@@ -148,12 +148,15 @@ export function Viewport3D() {
       <div ref={wrap} tabIndex={0} role="application" aria-label="3D view. Drag to orbit, scroll to zoom, arrow keys to pan." className="absolute inset-0 outline-offset-[-3px]">
         <Canvas
           key={`${bed.x}x${bed.y}`}
+          flat
           gl={{ localClippingEnabled: true, antialias: true }}
           camera={{ position: [bed.x / 2, reach * 0.6, -bed.y / 2 + reach * 0.9], fov: 40, near: 1, far: 5000 }}
         >
-          <hemisphereLight args={["#ffffff", "#22303a", 1.1]} />
-          <directionalLight position={[bed.x, bed.x * 1.5, bed.y]} intensity={1.6} />
-          <directionalLight position={[-bed.x, bed.x, -bed.y]} intensity={0.5} />
+          {/* Lit so shapes read, but a face turned to the light shows its filament colour as is: no tone mapping (`flat`), and
+              the light adds up to about 1 on an upward face (three's lights are scaled by pi). */}
+          <hemisphereLight args={["#ffffff", "#8a8f94", 1.9]} />
+          <directionalLight position={[bed.x, bed.x * 1.5, bed.y]} intensity={1.3} />
+          <directionalLight position={[-bed.x, bed.x, -bed.y]} intensity={0.4} />
           <group rotation={[-Math.PI / 2, 0, 0]}>
             <Plate bed={bed} />
             {!empty && <Model geometries={geometries} colors={colors} offset={offset} mode={mode} clipMm={clip} />}

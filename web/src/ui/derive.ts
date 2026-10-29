@@ -2,6 +2,7 @@
 import type { FilamentSlotBucket } from "../types/color";
 import type { ManifoldReport, MeshingOptions, ReliefDepth } from "../types/mesh";
 import type { PaletteEntry, VoxelPayload } from "../types/voxelPayload";
+import { texelSourceOf } from "../worker/meshingKernel/faces";
 
 export interface UiOptions {
   scaleMmPerBlock: number;
@@ -78,7 +79,7 @@ export const hasModelData = (p: VoxelPayload | null): boolean => !!p && p.palett
 export const hasEntities = (p: VoxelPayload | null): boolean => !!p && (p.entities?.length ?? 0) > 0;
 
 /** Does any palette entry carry face colours (grass top vs side)? Builds from an older mod do not. */
-export const hasFaceData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.faces && e.faces.length === 6);
+export const hasFaceData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.texture || (!!e.faces && e.faces.length === 6));
 
 /** Does any palette entry carry relief data? Builds from an older mod do not. */
 export const hasReliefData = (p: VoxelPayload | null): boolean => !!p && p.palette.some((e) => !!e.relief);
@@ -203,14 +204,16 @@ export function slotMembers(
   }
   // Blocks whose faces carry other colours also appear in those slots, once per slot.
   for (const [i, fb] of faceBuckets ?? []) {
+    const src = palette[i] ? texelSourceOf(palette[i]!) : null;
+    if (!src) continue;
     const seen = new Set<number>();
-    for (let f = 0; f < 6; f++) {
-      const b = fb[f] ?? 0;
-      const hex = palette[i]?.faces?.[f];
+    for (let t = 0; t < fb.length; t++) {
+      const b = fb[t] ?? 0;
+      const hex = src.colors[src.index[t] ?? 0];
       if (b === 0 || seen.has(b) || !hex) continue;
       seen.add(b);
       const list = out.get(b) ?? [];
-      list.push({ paletteIndex: i, name: `${palette[i]!.name} (faces)`, color: hex, count: counts[i] ?? 0, skin: true });
+      list.push({ paletteIndex: i, name: `${palette[i]!.name} (surface)`, color: hex, count: counts[i] ?? 0, skin: true });
       out.set(b, list);
     }
   }

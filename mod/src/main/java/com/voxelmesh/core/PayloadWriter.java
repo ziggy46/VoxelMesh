@@ -94,7 +94,8 @@ public final class PayloadWriter {
                 for (String t : e.tags()) tags.add(t);
                 o.add("tags", tags);
             }
-            if (!e.faces().isEmpty()) {
+            if (e.texture() != null) o.addProperty("texture", Base64.getEncoder().encodeToString(e.texture()));
+            else if (!e.faces().isEmpty()) {
                 JsonArray faces = new JsonArray();
                 for (String f : e.faces()) faces.add(f);
                 o.add("faces", faces);

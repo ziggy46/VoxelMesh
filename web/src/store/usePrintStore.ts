@@ -125,7 +125,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
 
   return {
     sourceName: null, payload: null, counts: null, warnings: [], loading: false, loadError: null,
-    options: DEFAULT_UI_OPTIONS, slotCount: 4, overrides: {}, slotColors: {},
+    options: DEFAULT_UI_OPTIONS, slotCount: 8, overrides: {}, slotColors: {},
     status: "idle", progress: null, error: null, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, modelBuckets: new Map(), modelBlocks: 0, entityBuckets: new Map(), entityCells: null, entitiesSkipped: null, timings: null,
     viewMode: "shaded", sectionMm: null,
 

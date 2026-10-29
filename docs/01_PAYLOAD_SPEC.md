@@ -37,6 +37,8 @@ export interface PaletteEntry {
   tags?: string[];
   /** Optional, full-cube blocks only: six "#RRGGBB" face colours in Direction order (DOWN, UP, NORTH, SOUTH, WEST, EAST). Present only when the faces differ visibly (grass, logs). */
   faces?: string[];
+  /** Optional, full-cube blocks only: base64 of 4608 bytes, six 16x16 face maps of RGB (face order as `relief`, index (a + b*16) * 3), biome tint already applied. Supersedes `faces`; absent when the texture is practically one colour. */
+  texture?: string;
   /** Optional: the shape and colours the game draws (docs/01 §3d). `boxes` stays the hitbox. */
   model?: BlockModelData;
 }

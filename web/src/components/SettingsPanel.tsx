@@ -127,11 +127,11 @@ export function SettingsPanel() {
         )}
       </Section>
 
-      <Section icon={<IconPalette width={16} height={16} />} title="Face colours">
-        <SwitchRow label="Colour each face" hint={hasFaces ? "Grass tops, log ends and similar blocks get a thin skin in their own slot" : "This build has no face colours. Re-export it with the updated mod."}
+      <Section icon={<IconPalette width={16} height={16} />} title="Surface colours">
+        <SwitchRow label="Colour the textures" hint={hasFaces ? "Each texel of a block face gets a thin skin in its own slot: sand grain, grass tops, log rings" : "This build has no texture colours. Re-export it with the updated mod."}
           checked={options.faceColors} disabled={!hasFaces} onChange={(v) => set("faceColors", v)} />
         {hasFaces && options.faceColors && facesSkipped && (
-          <Notice tone="warn">Face colours skipped: they would recolour {facesSkipped.wanted.toLocaleString()} cells (limit {facesSkipped.limit.toLocaleString()}). Use a smaller selection or turn them off.</Notice>
+          <Notice tone="warn">Surface colours skipped: they would recolour {facesSkipped.wanted.toLocaleString()} cells (limit {facesSkipped.limit.toLocaleString()}). Use a smaller selection or turn them off.</Notice>
         )}
         {hasFaces && options.faceColors && faceCells !== null && (
           <Notice tone="muted">Recoloured {faceCells.toLocaleString()} cells. The skin is about 0.8 mm thick; more filament slots show more colours.</Notice>

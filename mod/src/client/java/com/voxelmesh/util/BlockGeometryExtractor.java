@@ -8,6 +8,7 @@ import com.voxelmesh.core.ColorMath;
 import com.voxelmesh.core.EntityVoxelizer;
 import com.voxelmesh.core.PaletteEntry;
 import com.voxelmesh.core.ReliefSampler;
+import com.voxelmesh.core.TextureSampler;
 import com.voxelmesh.mixin.SpriteContentsAccessor;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -49,7 +50,7 @@ public final class BlockGeometryExtractor {
      * `relief` is 1536 luma bytes for full-cube blocks (see ReliefSampler), else null. `faceRgb` is each face's untinted average
      * colour (-1 = no data) and `faceTintMask` marks the biome-tinted faces; both are null for blocks that are not full cubes.
      */
-    public record StateInfo(Category category, List<int[]> boxes, int rgb, byte[] relief, List<String> tags, int[] faceRgb, int faceTintMask) {}
+    public record StateInfo(Category category, List<int[]> boxes, int rgb, byte[] relief, List<String> tags, int[] faceRgb, int faceTintMask, int[][] texels) {}
 
     /** Fabric's convention tags for glass; mods that tag their glass this way are covered without knowing them. */
     private static final TagKey<Block> GLASS_BLOCKS = TagKey.of(RegistryKeys.BLOCK, Identifier.of("c", "glass_blocks"));
@@ -97,8 +98,9 @@ public final class BlockGeometryExtractor {
         }
         byte[] relief = category == Category.SOLID ? sampleRelief(state) : null;
         int[] faceRgb = new int[ReliefSampler.FACES];
-        int tintMask = category == Category.SOLID ? sampleFaceColors(state, faceRgb) : -1;
-        return new StateInfo(category, boxes, baseColor(state, world, pos), relief, tagsFor(state), tintMask < 0 ? null : faceRgb, Math.max(tintMask, 0));
+        int[][] texels = new int[ReliefSampler.FACES][];
+        int tintMask = category == Category.SOLID ? sampleFaceColors(state, faceRgb, texels) : -1;
+        return new StateInfo(category, boxes, baseColor(state, world, pos), relief, tagsFor(state), tintMask < 0 ? null : faceRgb, Math.max(tintMask, 0), tintMask < 0 ? null : texels);
     }
 
     /**
@@ -221,7 +223,7 @@ public final class BlockGeometryExtractor {
      * Average colour of each face's own full-face quad (first one only, so overlays such as the grass side tint are ignored).
      * Fills `out` with 0xRRGGBB or -1 and returns the mask of faces whose quad is biome-tinted, or -1 when no face was readable.
      */
-    private int sampleFaceColors(BlockState state, int[] out) {
+    private int sampleFaceColors(BlockState state, int[] out, int[][] texels) {
         java.util.Arrays.fill(out, -1);
         BakedModel model;
         try {
@@ -236,13 +238,20 @@ public final class BlockGeometryExtractor {
                 for (BakedQuad quad : model.getQuads(state, Direction.byId(f), Random.create(42L))) {
                     int[] v = quad.getVertexData();
                     float[] xyz = new float[12];
+                    float[] uv = new float[8];
+                    Sprite sprite = quad.getSprite();
+                    float du = sprite.getMaxU() - sprite.getMinU(), dv = sprite.getMaxV() - sprite.getMinV();
                     for (int i = 0; i < 4; i++) {
                         xyz[3 * i] = Float.intBitsToFloat(v[i * 8]);
                         xyz[3 * i + 1] = Float.intBitsToFloat(v[i * 8 + 1]);
                         xyz[3 * i + 2] = Float.intBitsToFloat(v[i * 8 + 2]);
+                        uv[2 * i] = (Float.intBitsToFloat(v[i * 8 + 4]) - sprite.getMinU()) / du;
+                        uv[2 * i + 1] = (Float.intBitsToFloat(v[i * 8 + 5]) - sprite.getMinV()) / dv;
                     }
                     if (!ReliefSampler.coversFace(f, xyz)) continue;
-                    out[f] = ColorMath.averageAbgr(pixelsOf(quad.getSprite()).abgr());
+                    Pixels px = pixelsOf(sprite);
+                    texels[f] = TextureSampler.sampleFace(f, xyz, uv, px.abgr(), px.w(), px.h());
+                    out[f] = ColorMath.averageAbgr(px.abgr());
                     if (quad.getColorIndex() == 0) mask |= 1 << f;
                     any |= out[f] >= 0;
                     break;

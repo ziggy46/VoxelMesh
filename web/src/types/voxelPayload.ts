@@ -32,6 +32,11 @@ export interface PaletteEntry {
   tags?: string[];
   /** Optional, full-cube blocks only: six "#RRGGBB" face colours in the order DOWN, UP, NORTH, SOUTH, WEST, EAST. */
   faces?: string[];
+  /**
+   * Optional per-texel colour for full-cube blocks: base64 of 4608 bytes, six 16x16 face maps of RGB in the order DOWN, UP,
+   * NORTH, SOUTH, WEST, EAST (index = (a + b*16) * 3, same frames as `relief`). It supersedes `faces`.
+   */
+  texture?: string;
   /** Optional: the drawn shape and colours (docs/01 §3d). `boxes` stays the hitbox. */
   model?: BlockModelData;
 }
@@ -72,5 +77,6 @@ export const MAX_ENTITIES = 2000;
 export const MAX_ENTITY_BOXES = 50_000;
 export const MAX_TOTAL_ENTITY_BOXES = 400_000;
 export const RELIEF_BYTES = 6 * 16 * 16;
+export const TEXTURE_BYTES = RELIEF_BYTES * 3;
 export const WARN_BLOCKS = 64 * 64 * 64; // warn above 64^3 blocks
 export const MAX_BLOCKS = 128 * 128 * 128; // hard-gate above 128^3 blocks
