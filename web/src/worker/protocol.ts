@@ -32,6 +32,8 @@ export interface RunResult {
   entityBuckets: Map<number, number>;
   entityCells: number | null;
   entitiesSkipped: { wanted: number; limit: number } | null;
+  /** Cells per block edge as a multiple of 16 that this run used. */
+  detail: 1 | 2 | 4;
   timings: Record<Stage, number>;
 }
 

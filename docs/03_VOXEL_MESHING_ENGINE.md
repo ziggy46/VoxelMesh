@@ -137,3 +137,9 @@ Result must satisfy: every directed edge has exactly one opposite directed edge 
 
 ## 7. Performance budget
 24³ blocks FDM < 3 s; 48³ Resin < 12 s; memory per `docs/00 §4`. Avoid per-cell object allocation; use typed arrays and index math. Measure in the test harness and print the timings.
+
+## 2f. Detail (finer lattice)
+
+`MeshingOptions.detail` (1, 2 or 4; UI default 4 "Ultra", game look always 1). At detail d a block is d^3 chunks of 16^3 cells, so mesh coordinates are 16 * d per block and one texture texel is d x d cells. Chunk-level steps (cavity fill, repair, extraction, healing, validation) are unchanged; the block-level steps take `n = 16 * d` cells per block edge: `buildSparseGrid` (boxes scaled by d, dilation at n, templates split into chunks, uniform chunks kept as numbers), relief (`reliefLevels` smooths the texel map bilinearly between texel centres; the requested depth becomes `depth * d / 2` cells, i.e. half a texel, so Ultra relief is 0.5 texel deep), face skins (texel index = cell / d, skin up to 6 * d cells), model templates (n^3), entities (boxes scaled by d). Fixed constants (invariants 2 and 6 still hold): lattice coordinates stay below 4096.
+
+`chooseDetail` lowers the requested detail (4 -> 2 -> 1) until the lattice stays within 256 * 16 cells per axis, the chunks within 8M, the exposed surface (faces x (16 d)^2) within 4M cells and the entities within their 2M stamping budget, and the result reports what it used (`detail`). Exporters and the viewport scale lattice units by `scaleMmPerBlock / detail / 16`.

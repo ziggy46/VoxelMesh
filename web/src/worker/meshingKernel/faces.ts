@@ -9,10 +9,10 @@
 //     texel's slot. Only the colour of existing cells changes, never whether a cell is solid, so geometry, bed fit and
 //     contacts between blocks are untouched and the usual repair and validation still apply.
 import { base64ToBytes, decodeVoxels } from "../../payload/loader";
-import type { MeshingOptions, SparseGrid } from "../../types/mesh";
+import { detailOf, type MeshingOptions, type SparseGrid } from "../../types/mesh";
 import { TEXTURE_BYTES, type PaletteEntry, type VoxelPayload } from "../../types/voxelPayload";
 import { faceCell, faceNeighbour, faceOutside } from "./faceFrame";
-import { getCell, setCell } from "./gridAccess";
+import { chunkSolidAt, getCell, setCell } from "./gridAccess";
 import { isIncluded } from "./filters";
 import { modelOf } from "./models";
 
@@ -143,10 +143,11 @@ export function coreColor(faces: readonly string[]): string {
   return faces[best]!;
 }
 
-/** Skin thickness in cells: about SKIN_MM of material at this scale, at least one cell, at most SKIN_MAX_CELLS. */
+/** Skin thickness in cells: about SKIN_MM of material at this scale, at least one cell, at most SKIN_MAX_CELLS (per detail step). */
 export function skinDepth(o: MeshingOptions): number {
-  const cellMm = o.scaleMmPerBlock / 16;
-  return Math.min(SKIN_MAX_CELLS, Math.max(1, Math.round(SKIN_MM / cellMm)));
+  const R = detailOf(o);
+  const cellMm = o.scaleMmPerBlock / (16 * R);
+  return Math.min(SKIN_MAX_CELLS * R, Math.max(1, Math.round(SKIN_MM / cellMm)));
 }
 
 export interface FacePlan {
@@ -243,7 +244,8 @@ export function applyFaceSkins(grid: SparseGrid, p: VoxelPayload, buckets: Map<n
   if (buckets.size === 0) return none;
   const [sx, sy, sz] = p.dimensions;
   const voxels = decodeVoxels(p.voxelsBase64);
-  const Y = sz * 16;
+  const R = detailOf(o), N = 16 * R;
+  const Y = sz * N;
   const slicer = (gx: number, gy: number, gz: number): [number, number, number] => [gx, Y - 1 - gz, gy];
   const thick = skinDepth(o);
   const maxSkip = o.reliefDepth ?? 0;
@@ -271,27 +273,32 @@ export function applyFaceSkins(grid: SparseGrid, p: VoxelPayload, buckets: Map<n
           const [dx, dy, dz] = faceNeighbour(f);
           const nbx = bx + dx, nby = by + dy, nbz = bz + dz;
           if (nbx >= 0 && nby >= 0 && nbz >= 0 && nbx < sx && nby < sy && nbz < sz) {
-            const [cx, cy, cz] = slicer(nbx * 16, nby * 16, nbz * 16);
-            const chunk = grid.cells[(cx >> 4) + (cy >> 4) * grid.blocks[0] + (cz >> 4) * grid.blocks[0] * grid.blocks[1]];
-            if (typeof chunk === "number" && chunk !== 0) continue; // a solid neighbour block covers this whole face
+            let covered = true; // uniform non-air chunks all along the neighbour's near layer cover this whole face
+            for (let j = 0; covered && j < R; j++)
+              for (let i = 0; covered && i < R; i++) {
+                const [ox, oy, oz] = faceOutside(f, i * 16, j * 16, N);
+                const [cx, cy, cz] = slicer(bx * N + ox, by * N + oy, bz * N + oz);
+                covered = chunkSolidAt(grid, cx, cy, cz);
+              }
+            if (covered) continue;
           }
-          for (let b = 0; b < 16; b++)
-            for (let a = 0; a < 16; a++) {
-              const bucket = fb[f * 256 + a + b * 16]!;
+          for (let b = 0; b < N; b++)
+            for (let a = 0; a < N; a++) {
+              const bucket = fb[f * 256 + Math.floor(a / R) + Math.floor(b / R) * 16]!;
               if (bucket === 0) continue;
-              const [ox, oy, oz] = faceOutside(f, a, b);
-              const [ex, ey, ez] = slicer(bx * 16 + ox, by * 16 + oy, bz * 16 + oz);
+              const [ox, oy, oz] = faceOutside(f, a, b, N);
+              const [ex, ey, ez] = slicer(bx * N + ox, by * N + oy, bz * N + oz);
               if (getCell(grid, ex, ey, ez) !== 0) continue; // covered by something solid
               let k = 0;
               const cellAt = (kk: number): [number, number, number] => {
-                const [lx, ly, lz] = faceCell(f, a, b, kk);
-                return slicer(bx * 16 + lx, by * 16 + ly, bz * 16 + lz);
+                const [lx, ly, lz] = faceCell(f, a, b, kk, N);
+                return slicer(bx * N + lx, by * N + ly, bz * N + lz);
               };
               // Skip the cells this face's own relief carved. Air deeper than that was carved by another face (a pit on the
               // neighbouring side), and the column is left alone rather than recolouring cells far from this surface.
               while (k <= maxSkip && getCell(grid, ...cellAt(k)) === 0) k++;
               if (k > maxSkip) continue;
-              for (const end = Math.min(16, k + thick); k < end; k++) {
+              for (const end = Math.min(N, k + thick); k < end; k++) {
                 const [cx, cy, cz] = cellAt(k);
                 if (getCell(grid, cx, cy, cz) === 0) continue;
                 push(cx, cy, cz, bucket);

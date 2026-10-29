@@ -3,11 +3,11 @@ import { useId, useRef, useState } from "react";
 import { SAMPLES } from "../samples";
 import { usePrintStore } from "../store/usePrintStore";
 import { loadFile } from "../ui/files";
-import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasEntities, hasFaceData, hasModelData, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
-import { IconChevron, IconFile, IconFilter, IconLayers, IconPalette, IconPlate, IconPrinter, IconRuler, IconUpload, Notice, Section, SwitchRow } from "../ui/kit";
+import { BED_MAX_MM, BED_MIN_MM, BED_PRESETS, DETAIL_STEPS, MIN_WALL_MAX_MM, NOZZLE_MM, RELIEF_DEPTH, SCALE_MAX, SCALE_MIN, bedFor, bedLabel, clampBedMm, fitsBed, fmtSize, hasEntities, hasFaceData, hasModelData, hasReliefData, hasTag, minSubVoxels, modelSizeMm, reliefTooFine, texelMm, type BedPreset, type UiOptions } from "../ui/derive";
+import { IconChevron, IconFile, IconFilter, IconLayers, IconPalette, IconPlate, IconPrinter, IconRuler, IconUpload, Notice, Section, Segmented, SwitchRow } from "../ui/kit";
 
 export function SettingsPanel() {
-  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth, faceCells, facesSkipped, entityCells, entitiesSkipped, modelBlocks } = usePrintStore();
+  const { options, setOptions, payload, sourceName, loading, loadError, warnings, loadSample, reliefSkipped, reliefCarved, reliefUsedDepth, detail, faceCells, facesSkipped, entityCells, entitiesSkipped, modelBlocks } = usePrintStore();
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleId = useId();
   const scaleId = useId();
@@ -24,6 +24,9 @@ export function SettingsPanel() {
   const fineForNozzle = reliefTooFine(texel, options.minWallMm);
   const wallId = useId();
   const reliefOn = options.reliefDepth > 0;
+  // Relief is half a texel deep at 2x or 4x detail and one texel at standard; `detail` is what the last run could afford.
+  const reliefCells = detail === 1 ? RELIEF_DEPTH : Math.max(1, Math.round((RELIEF_DEPTH * detail) / 2));
+  const reliefDepthMm = (reliefCells * options.scaleMmPerBlock) / (16 * detail);
   const set = <K extends keyof UiOptions>(k: K, v: UiOptions[K]) => setOptions({ [k]: v } as Partial<UiOptions>);
 
   return (
@@ -144,7 +147,17 @@ export function SettingsPanel() {
         {reliefOn && hasRelief && (
           <SwitchRow label="Invert" hint="Carve the light areas instead of the dark ones" checked={options.reliefInvert} onChange={(v) => set("reliefInvert", v)} />
         )}
-        <p className="num mt-1 font-mono text-xs text-muted" aria-live="polite">1 texel = {texel.toFixed(2)} mm{reliefOn ? ` · depth ${(texel * RELIEF_DEPTH).toFixed(2)} mm` : ""}</p>
+        {reliefOn && hasRelief && (
+          <div className="mt-2">
+            <span className="mb-1.5 block text-xs font-medium text-ink-2">Surface detail</span>
+            <Segmented<number> label="Surface detail" value={options.detail} onChange={(v) => set("detail", v as 1 | 2 | 4)} options={DETAIL_STEPS.map((d) => ({ value: d.value, label: d.label }))} />
+            <p className="mt-1.5 text-xs leading-snug text-muted">Finer detail splits every block into smaller cells, so the relief is a fraction of a texel deep instead of a whole one. It costs time and memory.</p>
+          </div>
+        )}
+        <p className="num mt-1 font-mono text-xs text-muted" aria-live="polite">1 texel = {texel.toFixed(2)} mm{reliefOn ? ` · depth ${reliefDepthMm.toFixed(2)} mm` : ""}</p>
+        {reliefOn && hasRelief && detail < options.detail && (
+          <Notice tone="muted">This build is too large for {DETAIL_STEPS.find((d) => d.value === options.detail)?.label.toLowerCase()} detail, so it was printed at {DETAIL_STEPS.find((d) => d.value === detail)?.label.toLowerCase()} detail.</Notice>
+        )}
         {hasRelief && reliefOn && fineForNozzle && <Notice tone="warn">Finer than a {NOZZLE_MM} mm nozzle, so it will barely show on FDM. Use at least {(NOZZLE_MM * 16).toFixed(1)} mm per block.</Notice>}
         {reliefSkipped && reliefOn && (
           <Notice tone="warn">Relief skipped: it would carve {reliefSkipped.wanted.toLocaleString()} texels (limit {reliefSkipped.limit.toLocaleString()}) and make the mesh too heavy. Use a smaller selection or turn relief off.</Notice>

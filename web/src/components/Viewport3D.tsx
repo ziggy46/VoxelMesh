@@ -109,7 +109,9 @@ export function Viewport3D() {
 
   const bed = bedFor(options);
   const reach = Math.max(Math.hypot(bed.x, bed.y), 300); // camera distance: far enough for either plate
-  const k = options.scaleMmPerBlock / 16;
+  const printDetail = usePrintStore((s) => s.detail);
+  // The game-look run is always 16 cells per block; the print run is 16 * detail.
+  const k = options.scaleMmPerBlock / (16 * (showGame ? 1 : printDetail));
 
   const geometries = useMemo(
     () =>

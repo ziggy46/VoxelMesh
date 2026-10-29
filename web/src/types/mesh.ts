@@ -26,7 +26,15 @@ export interface MeshingOptions {
   reliefDepth?: ReliefDepth;
   /** Carve the light texels instead of the dark ones. */
   reliefInvert?: boolean;
+  /**
+   * Cells per block edge as a multiple of 16: 1 (default), 2 or 4. At 2 or 4 every block is 2^3 or 4^3 chunks of 16^3 cells, so a
+   * texture texel is 2x2 or 4x4 cells wide and relief can be a fraction of a texel deep. Mesh coordinates are then 16 * detail per block.
+   */
+  detail?: 1 | 2 | 4;
 }
+
+/** The detail factor of these options (1 when unset). */
+export const detailOf = (o: Pick<MeshingOptions, "detail">): 1 | 2 | 4 => o.detail ?? 1;
 
 /** Block-chunked sparse grid in SLICER space. Block index = bx + by*Bx + bz*Bx*By. */
 export interface SparseGrid {

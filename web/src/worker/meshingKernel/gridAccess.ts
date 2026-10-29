@@ -48,3 +48,12 @@ export function demoteIfUniform(g: SparseGrid, ci: number): boolean {
   g.cells[ci] = first;
   return true;
 }
+
+/** True when the cell's whole chunk is one non-air number (cheap "this is solid right here" test, no cell lookup). */
+export function chunkSolidAt(g: SparseGrid, x: number, y: number, z: number): boolean {
+  const [Bx, By, Bz] = g.blocks;
+  const cx = x >> 4, cy = y >> 4, cz = z >> 4;
+  if (cx < 0 || cy < 0 || cz < 0 || cx >= Bx || cy >= By || cz >= Bz) return false;
+  const c = g.cells[cx + cy * Bx + cz * Bx * By];
+  return typeof c === "number" && c !== 0;
+}

@@ -24,6 +24,8 @@ export interface UiOptions {
   /** Surface relief depth in sub-voxels (0 = off) and whether light texels are carved instead of dark. */
   reliefDepth: ReliefDepth;
   reliefInvert: boolean;
+  /** Cells per block edge as a multiple of 16 (1, 2 or 4): finer detail makes texture relief a fraction of a texel deep. Lowered automatically for big builds. */
+  detail: 1 | 2 | 4;
   /** Build plate: an index into BED_PRESETS, or a custom size. */
   bedPreset: BedPreset;
   customBed: Bed;
@@ -56,9 +58,17 @@ export const DEFAULT_UI_OPTIONS: UiOptions = {
   fixNonManifold: true,
   reliefDepth: RELIEF_DEPTH, // on by default; the depth is fixed, only on/off and invert are user choices
   reliefInvert: false,
+  detail: 4,
   bedPreset: DEFAULT_BED_PRESET,
   customBed: { x: 250, y: 250 },
 };
+
+/** The detail steps the UI offers, with their labels. */
+export const DETAIL_STEPS = [
+  { value: 1, label: "Standard" },
+  { value: 2, label: "Fine" },
+  { value: 4, label: "Ultra" },
+] as const;
 
 export const SCALE_MIN = 1.0;
 export const SCALE_MAX = 15.0;
@@ -104,6 +114,7 @@ export function toMeshingOptions(u: UiOptions): MeshingOptions {
     minNozzleWallMm: u.minWallMm,
     reliefDepth: u.reliefDepth,
     reliefInvert: u.reliefInvert,
+    detail: u.detail,
   };
 }
 
@@ -124,6 +135,7 @@ export function needsRerun(a: UiOptions, b: UiOptions): boolean {
     ma.fillInteriorCavities !== mb.fillInteriorCavities ||
     ma.fixNonManifold !== mb.fixNonManifold ||
     ma.reliefDepth !== mb.reliefDepth ||
+    ma.detail !== mb.detail ||
     (mb.reliefDepth !== 0 && ma.reliefInvert !== mb.reliefInvert) ||
     (scaleMatters && ma.scaleMmPerBlock !== mb.scaleMmPerBlock)
   );
@@ -138,7 +150,7 @@ export const GAME_LOOK_SLOTS = 256;
  * entities) are the user's.
  */
 export function toGameLookOptions(u: UiOptions): MeshingOptions {
-  return { ...toMeshingOptions(u), exactShapes: true, faceColors: true, reliefDepth: 0, minNozzleWallMm: 0, printerMode: "resin", fillInteriorCavities: false };
+  return { ...toMeshingOptions(u), exactShapes: true, faceColors: true, reliefDepth: 0, minNozzleWallMm: 0, printerMode: "resin", fillInteriorCavities: false, detail: 1 };
 }
 
 /** Build plate footprint in mm. */

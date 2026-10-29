@@ -196,3 +196,9 @@ Feature request after G5: make a single-colour print look textured by carving bl
 - **Why (user):** "I want the 3D model that shows up in the web to look exactly like I saw it in the game." The preview showed the print result (colours merged into filament slots, relief pits, thickened walls), which cannot look like the game.
 - **Web:** a second worker run (`kind: "game"`, `toGameLookOptions`, up to 256 colours, no relief, no minimum wall, exact shapes and texel colours always on, no cavity fill) feeds a new "Game look" / "Print slots" switch over the viewport (default Game look). Slots, estimates, validation and export are still the print run. The game-look meshes are colour-per-mesh from the clustering centroids. Filters (glass, leaves, fluids, foliage, entities) follow the user's settings.
 - **Not the game:** glass and water are opaque or skipped (no transparency), no per-face game shading or ambient occlusion, textures are 16x16 texel colours grouped at 4 bits a channel (at most 32 per block type), animated textures use their first frame.
+
+### Finer lattice: surface detail 1/2/4 (2026-10-29)
+- **Why (user):** a screenshot of the print model showed relief pits "way too deep": at 16 cells per block a pit is a whole texel deep, which looks like a stack of boxes.
+- **What:** `MeshingOptions.detail` (docs/03 §2f): blocks become d^3 chunks, relief is smoothed and half a texel deep, face skins and models follow. UI "Surface detail" Standard / Fine / Ultra (default Ultra), automatic fallback by build size, exporters and viewport scale by `scale / detail`. 12 new tests (grid, relief, skins, pipeline watertight at 2x and 4x, budgets, determinism).
+- **Checked in a browser** on a 4x2x4 grass and dirt patch: Standard 0.1 s and 105k triangles with chunky pits; Ultra 1.4 s, 640k triangles, fine grain, watertight.
+- **Unverified:** large real builds at Fine or Ultra (time and memory), slicing a 640k-triangle part, a physical print.

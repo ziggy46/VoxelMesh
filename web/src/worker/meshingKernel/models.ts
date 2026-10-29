@@ -3,13 +3,11 @@
 //  1. Colour planning (`planModelColors`): the block's own colour becomes the colour covering most of its cells and every
 //     other distinct colour joins the clustering as an extra point, so they share filament slots with everything else.
 //  2. Templates (`buildModelTemplates`): each such block type gets a 16x16x16 chunk of slot numbers, thickened to the minimum
-//     wall like any thin part, which `buildSparseGrid` copies per block instead of filling the hitbox.
-import type { MeshingOptions } from "../../types/mesh";
+//     wall like any thin part (n x n x n cells, n = 16 * detail), which `buildSparseGrid` copies per block instead of filling the hitbox.
+import { detailOf, type MeshingOptions } from "../../types/mesh";
 import type { PaletteEntry } from "../../types/voxelPayload";
 import { widen, minWallCells } from "./entities";
 import { isIncluded } from "./filters";
-
-const CELLS = 16 * 16 * 16;
 
 /** The entry's model when it has one and exact shapes are on. */
 export function modelOf(e: PaletteEntry, o: MeshingOptions) {
@@ -68,27 +66,28 @@ export function planModelColors(palette: PaletteEntry[], colors: Array<{ color: 
 export function buildModelTemplates(palette: PaletteEntry[], plan: ModelPlan, bucketOfIndex: Uint16Array, mainBucket: Uint16Array, o: MeshingOptions): Map<number, Uint16Array> {
   const out = new Map<number, Uint16Array>();
   const wall = minWallCells(o);
+  const R = detailOf(o), N = 16 * R, CELLS = N * N * N;
   for (const [i, idx] of plan.modelIndex) {
     const main = mainBucket[i] ?? 0;
     const m = palette[i]!.model;
     if (!m || main === 0) continue;
     const bucket = idx.map((at) => (at === 0 ? main : bucketOfIndex[at] || main));
-    // MC-local layout x + 16*(y + 16*z): widening works along x and z, the horizontal axes, as for blocks
+    // MC-local layout x + N*(y + N*z): widening works along x and z, the horizontal axes, as for blocks
     const mc = new Uint16Array(CELLS);
     for (const b of m.boxes) {
       const v = bucket[b[6]]!;
-      for (let z = b[2]; z < b[5]; z++)
-        for (let y = b[1]; y < b[4]; y++) mc.fill(v, b[0] + 16 * (y + 16 * z), b[3] + 16 * (y + 16 * z));
+      for (let z = b[2] * R; z < b[5] * R; z++)
+        for (let y = b[1] * R; y < b[4] * R; y++) mc.fill(v, b[0] * R + N * (y + N * z), b[3] * R + N * (y + N * z));
     }
     if (wall > 1) {
       const never = () => true; // inside the block the array bounds are the only limit
-      widen(mc, [0, 0, 0], [16, 16, 16], 0, wall, never);
-      widen(mc, [0, 0, 0], [16, 16, 16], 2, wall, never);
+      widen(mc, [0, 0, 0], [N, N, N], 0, wall, never);
+      widen(mc, [0, 0, 0], [N, N, N], 2, wall, never);
     }
     const chunk = new Uint16Array(CELLS);
-    for (let z = 0; z < 16; z++)
-      for (let y = 0; y < 16; y++)
-        for (let x = 0; x < 16; x++) chunk[x + (15 - z) * 16 + y * 256] = mc[x + 16 * (y + 16 * z)]!;
+    for (let z = 0; z < N; z++)
+      for (let y = 0; y < N; y++)
+        for (let x = 0; x < N; x++) chunk[x + (N - 1 - z) * N + y * N * N] = mc[x + N * (y + N * z)]!;
     out.set(i, chunk);
   }
   return out;

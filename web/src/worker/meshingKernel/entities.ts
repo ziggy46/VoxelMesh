@@ -4,7 +4,7 @@
 //     filament slots with the blocks.
 //  2. Stamping (`applyEntities`): each entity's cells are written into the grid, but only into air, so a real block always
 //     wins and the block geometry is never disturbed. Entities are first given the minimum wall (see `widen`).
-import type { MeshingOptions, SparseGrid } from "../../types/mesh";
+import { detailOf, type MeshingOptions, type SparseGrid } from "../../types/mesh";
 import type { PayloadEntity, VoxelPayload } from "../../types/voxelPayload";
 import { getCell, setCell } from "./gridAccess";
 
@@ -60,7 +60,8 @@ export interface EntityResult {
 /** Minimum wall in cells for these options: the same rule the block dilation uses (docs/03 §2). 0 = no thickening. */
 export function minWallCells(o: MeshingOptions): number {
   if (!(o.minNozzleWallMm > 0) || !(o.scaleMmPerBlock > 0)) return 0;
-  return Math.min(16, Math.ceil((o.minNozzleWallMm / o.scaleMmPerBlock) * 16 - 1e-9));
+  const n = 16 * detailOf(o);
+  return Math.min(n, Math.ceil((o.minNozzleWallMm / o.scaleMmPerBlock) * n - 1e-9));
 }
 
 /**
@@ -72,12 +73,15 @@ export function applyEntities(grid: SparseGrid, p: VoxelPayload, bucketOf: (hex:
   const none: EntityResult = { stamped: 0, byBucket: new Map(), skipped: null };
   const entities = p.entities;
   if (!entities || entities.length === 0 || o.includeEntities === false) return none;
+  const R = detailOf(o);
+  // Boxes are in 16-per-block lattice units; at higher detail they grow to match the finer cells.
+  const scaled = (b: readonly number[]): number[] => (R === 1 ? [...b] : [b[0]! * R, b[1]! * R, b[2]! * R, b[3]! * R, b[4]! * R, b[5]! * R, b[6]!]);
   let wanted = 0;
-  for (const e of entities) for (const b of e.boxes) wanted += volume(b);
+  for (const e of entities) for (const b of e.boxes) wanted += volume(scaled(b));
   if (wanted > limit) return { stamped: 0, byBucket: new Map(), skipped: { wanted, limit } };
 
   const [, , sz] = p.dimensions;
-  const Y = sz * 16;
+  const Y = sz * 16 * R;
   const [Bx, By, Bz] = grid.blocks;
   const gx = Bx * 16, gy = By * 16, gz = Bz * 16;
   /** MC global lattice -> slicer cell, as for blocks (docs/01 §1). */
@@ -91,9 +95,10 @@ export function applyEntities(grid: SparseGrid, p: VoxelPayload, bucketOf: (hex:
   for (const e of entities) {
     const buckets = e.palette.map((hex) => bucketOf(hex.toUpperCase()));
     let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
-    for (const b of e.boxes) {
-      x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); z0 = Math.min(z0, b[2]);
-      x1 = Math.max(x1, b[3]); y1 = Math.max(y1, b[4]); z1 = Math.max(z1, b[5]);
+    const boxes = e.boxes.map(scaled);
+    for (const b of boxes) {
+      x0 = Math.min(x0, b[0]!); y0 = Math.min(y0, b[1]!); z0 = Math.min(z0, b[2]!);
+      x1 = Math.max(x1, b[3]!); y1 = Math.max(y1, b[4]!); z1 = Math.max(z1, b[5]!);
     }
     if (!isFinite(x0)) continue;
     const pad = wall > 1 ? wall : 0;
@@ -101,11 +106,11 @@ export function applyEntities(grid: SparseGrid, p: VoxelPayload, bucketOf: (hex:
     const W = x1 - x0 + 2 * pad, H = y1 - y0, D = z1 - z0 + 2 * pad;
     const cells = new Uint16Array(W * H * D);
     const at = (x: number, y: number, z: number) => (x - rx) + W * ((y - ry) + H * (z - rz));
-    for (const b of e.boxes) {
-      const bucket = buckets[b[6]]!;
+    for (const b of boxes) {
+      const bucket = buckets[b[6]!]!;
       if (bucket === 0) continue;
-      for (let z = b[2]; z < b[5]; z++)
-        for (let y = b[1]; y < b[4]; y++) cells.fill(bucket, at(b[0], y, z), at(b[3], y, z));
+      for (let z = b[2]!; z < b[5]!; z++)
+        for (let y = b[1]!; y < b[4]!; y++) cells.fill(bucket, at(b[0]!, y, z), at(b[3]!, y, z));
     }
     if (wall > 1) {
       widen(cells, [rx, ry, rz], [W, H, D], 0, wall, free);

@@ -2,7 +2,7 @@
 // Pure and synchronous so it runs in the worker, in Node tests and in perf measurements alike.
 import { decodeVoxels } from "../payload/loader";
 import type { QuantizationResult } from "../types/color";
-import type { ColorBucketMesh, ManifoldReport, MeshingOptions } from "../types/mesh";
+import { detailOf, type ColorBucketMesh, type ManifoldReport, type MeshingOptions, type ReliefDepth } from "../types/mesh";
 import type { VoxelPayload } from "../types/voxelPayload";
 import { validateAll } from "../validate/manifold";
 import { quantizePaletteToSlots } from "./colorQuantizer";
@@ -49,8 +49,45 @@ export interface PipelineResult {
   entityCells: number | null;
   /** Set when entities were wanted but exceed the stamping budget. */
   entitiesSkipped: { wanted: number; limit: number } | null;
+  /** Cells per block edge as a multiple of 16 that the run used: the requested detail, lowered when the build is too big for it. */
+  detail: 1 | 2 | 4;
   /** Wall-clock milliseconds per stage. */
   timings: Record<Stage, number>;
+}
+
+/** Surface cells (exposed block faces x cells per face) a run may carry before the finer lattice is dropped a step. */
+export const DETAIL_SURFACE_BUDGET = 4_000_000;
+/** Chunks (blocks x detail^3) a run may carry. */
+export const DETAIL_CHUNK_BUDGET = 8_000_000;
+
+/**
+ * The detail a run can afford: the requested one, halved until the lattice stays below 4096 cells per axis, the grid below the
+ * chunk budget, the exposed surface below the surface budget and the entities below their stamping budget.
+ */
+export function chooseDetail(p: VoxelPayload, o: MeshingOptions): 1 | 2 | 4 {
+  let r = detailOf(o);
+  if (r === 1) return 1;
+  const [sx, sy, sz] = p.dimensions;
+  const voxels = decodeVoxels(p.voxelsBase64);
+  let exposed = 0;
+  for (let y = 0; y < sy; y++)
+    for (let z = 0; z < sz; z++)
+      for (let x = 0; x < sx; x++) {
+        if (voxels[x + z * sx + y * sx * sz] === 0) continue;
+        const air = (a: number, b: number, c: number) => a < 0 || b < 0 || c < 0 || a >= sx || b >= sy || c >= sz || voxels[a + c * sx + b * sx * sz] === 0;
+        if (air(x - 1, y, z)) exposed++;
+        if (air(x + 1, y, z)) exposed++;
+        if (air(x, y - 1, z)) exposed++;
+        if (air(x, y + 1, z)) exposed++;
+        if (air(x, y, z - 1)) exposed++;
+        if (air(x, y, z + 1)) exposed++;
+      }
+  let entityCells = 0;
+  for (const e of p.entities ?? []) for (const b of e.boxes) entityCells += (b[3] - b[0]) * (b[4] - b[1]) * (b[5] - b[2]);
+  const fits = (d: number) =>
+    Math.max(sx, sy, sz) * d <= 256 && sx * sy * sz * d ** 3 <= DETAIL_CHUNK_BUDGET && exposed * (16 * d) ** 2 <= DETAIL_SURFACE_BUDGET && entityCells * d ** 3 <= 2_000_000;
+  while (r > 1 && !fits(r)) r = (r / 2) as 1 | 2;
+  return r;
 }
 
 export interface PipelineOptions {
@@ -61,7 +98,13 @@ export interface PipelineOptions {
   onProgress?: (stage: Stage, fraction: number) => void;
 }
 
-export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOptions): PipelineResult {
+export function runPipeline(p: VoxelPayload, requested: MeshingOptions, opts: PipelineOptions): PipelineResult {
+  const detail = chooseDetail(p, requested);
+  // Relief depth is asked for in texels at detail 1; at 2x or 4x the cells are finer, so the same request becomes depth * detail / 2
+  // cells: half a texel deep, the gentler depth.
+  const asked = requested.reliefDepth ?? 0;
+  const cells = asked === 0 || detail === 1 ? asked : (Math.min(3, Math.max(1, Math.round((asked * detail) / 2))) as ReliefDepth);
+  const o: MeshingOptions = detail === detailOf(requested) && cells === asked ? requested : { ...requested, detail, reliefDepth: cells };
   const timings = Object.fromEntries(STAGES.map((s) => [s, 0])) as Record<Stage, number>;
   const step = <T>(stage: Stage, fn: () => T): T => {
     opts.onProgress?.(stage, 0);
@@ -120,5 +163,5 @@ export function runPipeline(p: VoxelPayload, o: MeshingOptions, opts: PipelineOp
     reliefUsedDepth: relief && !relief.skipped ? relief.usedDepth : null,
     faceBuckets: skins?.skipped ? new Map() : buckets, faceCells: skins && !skins.skipped ? skins.recolored : null, facesSkipped: skins?.skipped ?? null,
     modelBuckets: planModelBuckets(p.palette, modelPlan, raw0.paletteToBucketMap, paletteToBucket), modelBlocks: templates.size,
-    entityBuckets: ents?.byBucket ?? new Map(), entityCells: ents && !ents.skipped ? ents.stamped : null, entitiesSkipped: ents?.skipped ?? null, timings };
+    entityBuckets: ents?.byBucket ?? new Map(), entityCells: ents && !ents.skipped ? ents.stamped : null, entitiesSkipped: ents?.skipped ?? null, detail, timings };
 }

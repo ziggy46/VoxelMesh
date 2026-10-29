@@ -24,7 +24,9 @@ type Kind = "3mf" | "stl";
 interface Pending { kind: Kind; issues: number; stl?: ColorBucketMesh[] }
 
 export function ExportToolbar() {
-  const { meshes, buckets, reports, options, slotColors, payload, status, slotCount, runMono } = usePrintStore();
+  const { meshes, buckets, reports, options, slotColors, payload, status, slotCount, runMono, detail } = usePrintStore();
+  // Mesh coordinates are 16 * detail per block, so one lattice unit is scale / detail of a 16th of a block.
+  const meshScale = options.scaleMmPerBlock / detail;
   const [busy, setBusy] = useState<Kind | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -33,7 +35,7 @@ export function ExportToolbar() {
   const issues = totalIssues(reports);
   const verts = meshes.reduce((n, m) => n + m.positions.length / 3, 0);
   const tris = reports.reduce((n, r) => n + r.triangles, 0);
-  const est = estimate(reports, options.scaleMmPerBlock);
+  const est = estimate(reports, meshScale);
   const title = payload?.metadata.title ?? "VoxelMesh";
 
   const exportBuckets = useMemo<ExportBucket[]>(() => {
@@ -55,7 +57,7 @@ export function ExportToolbar() {
   const do3mf = async (skipValidation: boolean) => {
     setBusy("3mf");
     try {
-      const blob = await generateMultiColor3MF(exportBuckets, title, options.scaleMmPerBlock, { skipValidation });
+      const blob = await generateMultiColor3MF(exportBuckets, title, meshScale, { skipValidation });
       save(blob, `${safeFileName(title)}.3mf`);
       finish(true, `Exported ${safeFileName(title)}.3mf (${(blob.size / 1024).toFixed(0)} KB).`);
     } catch (e) {
@@ -77,7 +79,7 @@ export function ExportToolbar() {
         }
       }
       const out: ExportBucket[] = mono.map((m) => ({ bucketId: m.bucketId, name: "Model", hexColor: "#808080", mesh: m }));
-      const buf = generateBinarySTL(out, options.scaleMmPerBlock);
+      const buf = generateBinarySTL(out, meshScale);
       save(buf, `${safeFileName(title)}.stl`);
       finish(true, `Exported ${safeFileName(title)}.stl (${(buf.byteLength / 1024).toFixed(0)} KB).`);
     } catch (e) {
