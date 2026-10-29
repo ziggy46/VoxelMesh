@@ -4,7 +4,7 @@ import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ElementRef } from "react";
 import * as THREE from "three";
-import { usePrintStore, type ViewMode } from "../store/usePrintStore";
+import { usePrintStore, type Look, type ViewMode } from "../store/usePrintStore";
 import { loadFile } from "../ui/files";
 import { bedFor, slotHex, type Bed } from "../ui/derive";
 import { IconAlert, IconCube, IconDownload } from "../ui/kit";
@@ -13,6 +13,11 @@ const MODES: Array<{ id: ViewMode; label: string }> = [
   { id: "shaded", label: "Shaded" },
   { id: "wireframe", label: "Wireframe" },
   { id: "section", label: "Section" },
+];
+
+const LOOKS: Array<{ id: Look; label: string; hint: string }> = [
+  { id: "game", label: "Game look", hint: "Every texture colour, as you saw it in Minecraft. Not limited to your filament slots." },
+  { id: "print", label: "Print slots", hint: "What your filament slots will print: colours merged, surface relief and thickened walls applied." },
 ];
 
 function plateLines(bed: Bed): Float32Array {
@@ -81,8 +86,16 @@ function Model({ geometries, colors, offset, mode, clipMm }: ModelProps) {
 }
 
 export function Viewport3D() {
-  const meshes = usePrintStore((s) => s.meshes);
-  const buckets = usePrintStore((s) => s.buckets);
+  const look = usePrintStore((s) => s.look);
+  const setLook = usePrintStore((s) => s.setLook);
+  const printMeshes = usePrintStore((s) => s.meshes);
+  const printBuckets = usePrintStore((s) => s.buckets);
+  const gameMeshes = usePrintStore((s) => s.gameMeshes);
+  const gameBuckets = usePrintStore((s) => s.gameBuckets);
+  // The game look falls back to the print meshes until its own run has finished.
+  const showGame = look === "game" && gameMeshes.length > 0;
+  const meshes = showGame ? gameMeshes : printMeshes;
+  const buckets = showGame ? gameBuckets : printBuckets;
   const slotColors = usePrintStore((s) => s.slotColors);
   const options = usePrintStore((s) => s.options);
   const mode = usePrintStore((s) => s.viewMode);
@@ -128,9 +141,9 @@ export function Viewport3D() {
     const byId = new Map(buckets.map((b) => [b.bucketId, b]));
     return meshes.map((m) => {
       const b = byId.get(m.bucketId);
-      return b ? slotHex(b, slotColors) : "#cccccc";
+      return b ? (showGame ? b.hexColor : slotHex(b, slotColors)) : "#cccccc";
     });
-  }, [meshes, buckets, slotColors]);
+  }, [meshes, buckets, slotColors, showGame]);
 
   const clip = mode === "section" ? Math.min(sectionMm ?? heightMm, heightMm) : null;
 
@@ -168,6 +181,12 @@ export function Viewport3D() {
       <div role="radiogroup" aria-label="View mode" className="glass seg absolute left-1/2 top-4 -translate-x-1/2 !rounded-full !p-1">
         {MODES.map((m) => (
           <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} onClick={() => setViewMode(m.id)} className="!rounded-full !px-4">{m.label}</button>
+        ))}
+      </div>
+
+      <div role="radiogroup" aria-label="Preview look" className="glass seg absolute left-1/2 top-[4.25rem] -translate-x-1/2 !rounded-full !p-1">
+        {LOOKS.map((l) => (
+          <button key={l.id} type="button" role="radio" aria-checked={look === l.id} title={l.hint} onClick={() => setLook(l.id)} className="!rounded-full !px-4">{l.label}</button>
         ))}
       </div>
 

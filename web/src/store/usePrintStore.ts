@@ -6,16 +6,19 @@ import { SAMPLES } from "../samples";
 import type { FilamentSlotBucket } from "../types/color";
 import type { ColorBucketMesh, ManifoldReport } from "../types/mesh";
 import type { VoxelPayload } from "../types/voxelPayload";
-import { DEFAULT_UI_OPTIONS, needsRerun, toMeshingOptions, type UiOptions } from "../ui/derive";
+import { DEFAULT_UI_OPTIONS, GAME_LOOK_SLOTS, needsRerun, toGameLookOptions, toMeshingOptions, type UiOptions } from "../ui/derive";
 import { MeshClient } from "../worker/meshClient";
 import type { Stage } from "../worker/pipeline";
 
 export type ViewMode = "shaded" | "wireframe" | "section";
+/** What the preview shows: the game as the player saw it, or the model as the filament slots will print it. */
+export type Look = "game" | "print";
 export type SlotCount = 1 | 4 | 8 | 16;
 export type Status = "idle" | "running" | "ready" | "error";
 
 const DEBOUNCE_MS = 250;
 const EXPORT_SEQ_BASE = 1_000_000_000;
+const GAME_SEQ_BASE = 2_000_000_000;
 
 interface PrintState {
   sourceName: string | null;
@@ -57,6 +60,10 @@ interface PrintState {
   timings: Record<string, number> | null;
 
   viewMode: ViewMode;
+  look: Look;
+  /** The game-look run: one mesh per true colour, no relief or thickening. Empty until it has run. */
+  gameMeshes: ColorBucketMesh[];
+  gameBuckets: FilamentSlotBucket[];
   /** Section cut height in mm above the plate; null = no cut. */
   sectionMm: number | null;
 
@@ -67,6 +74,7 @@ interface PrintState {
   reassign: (paletteIndex: number, bucket: number) => void;
   setSlotColor: (bucket: number, hex: string | null) => void;
   setViewMode: (m: ViewMode) => void;
+  setLook: (l: Look) => void;
   setSectionMm: (mm: number | null) => void;
   /** Re-run with every colour in one slot, for the single-material STL (docs/04 §3). */
   runMono: () => Promise<ColorBucketMesh[]>;
@@ -76,6 +84,7 @@ let client: MeshClient | null = null;
 const getClient = (): MeshClient => (client ??= new MeshClient());
 let seq = 0;
 let exportSeq = EXPORT_SEQ_BASE;
+let gameSeq = GAME_SEQ_BASE;
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 export const usePrintStore = create<PrintState>()((set, get) => {
@@ -85,6 +94,16 @@ export const usePrintStore = create<PrintState>()((set, get) => {
     const mySeq = ++seq;
     getClient().cancel(mySeq - 1);
     set({ status: "running", progress: { stage: "decode", fraction: 0 }, error: null });
+    const myGame = ++gameSeq;
+    getClient().cancel(myGame - 1);
+    getClient()
+      .run({ seq: myGame, kind: "game", options: toGameLookOptions(s.options), maxSlots: GAME_LOOK_SLOTS, overrides: [] })
+      .then((r) => {
+        if (myGame === gameSeq) set({ gameMeshes: r.meshes, gameBuckets: r.buckets });
+      })
+      .catch(() => {
+        if (myGame === gameSeq) set({ gameMeshes: [], gameBuckets: [] });
+      });
     getClient()
       .run(
         { seq: mySeq, kind: "preview", options: toMeshingOptions(s.options), maxSlots: s.slotCount, overrides: Object.entries(s.overrides).map(([k, v]) => [Number(k), v]) },
@@ -118,7 +137,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
     set({
       sourceName: name, payload: loaded.payload, counts, warnings: loaded.warnings, loading: false, loadError: null,
       overrides: {}, slotColors: {}, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, modelBuckets: new Map(), modelBlocks: 0, entityBuckets: new Map(), entityCells: null, entitiesSkipped: null, timings: null,
-      sectionMm: null,
+      sectionMm: null, gameMeshes: [], gameBuckets: [],
     });
     schedule(true);
   };
@@ -127,7 +146,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
     sourceName: null, payload: null, counts: null, warnings: [], loading: false, loadError: null,
     options: DEFAULT_UI_OPTIONS, slotCount: 8, overrides: {}, slotColors: {},
     status: "idle", progress: null, error: null, meshes: [], buckets: [], paletteToBucket: null, reports: [], repair: null, reliefCarved: null, reliefSkipped: null, reliefUsedDepth: null, faceBuckets: new Map(), faceCells: null, facesSkipped: null, modelBuckets: new Map(), modelBlocks: 0, entityBuckets: new Map(), entityCells: null, entitiesSkipped: null, timings: null,
-    viewMode: "shaded", sectionMm: null,
+    viewMode: "shaded", look: "game", gameMeshes: [], gameBuckets: [], sectionMm: null,
 
     loadBytes: async (name, bytes) => {
       set({ loading: true, loadError: null });
@@ -174,6 +193,7 @@ export const usePrintStore = create<PrintState>()((set, get) => {
     },
 
     setViewMode: (m) => set({ viewMode: m }),
+    setLook: (l) => set({ look: l }),
     setSectionMm: (mm) => set({ sectionMm: mm }),
 
     runMono: async () => {

@@ -108,14 +108,16 @@ export function quantizePaletteToSlots(
   if (points.length > k) {
     // K-means++ seeding: highest weight first, then max w * minDist^2; ties -> lowest index (points are index-ordered).
     const seeds: number[] = [];
+    const seeded = new Uint8Array(points.length);
     let first = 0;
     for (let i = 1; i < points.length; i++) if (points[i]!.pull > points[first]!.pull) first = i;
     seeds.push(first);
+    seeded[first] = 1;
     const minD = points.map((p) => dist2(p.lab, points[first]!.lab));
     while (seeds.length < k) {
       let best = -1, bestScore = -1;
       for (let i = 0; i < points.length; i++) {
-        if (seeds.includes(i)) continue;
+        if (seeded[i]) continue;
         const score = points[i]!.pull * minD[i]!;
         if (score > bestScore) {
           bestScore = score;
@@ -123,6 +125,7 @@ export function quantizePaletteToSlots(
         }
       }
       seeds.push(best);
+      seeded[best] = 1;
       for (let i = 0; i < points.length; i++) minD[i] = Math.min(minD[i]!, dist2(points[i]!.lab, points[best]!.lab));
     }
     centroids = seeds.map((s) => [...points[s]!.lab] as Lab);

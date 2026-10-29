@@ -129,6 +129,18 @@ export function needsRerun(a: UiOptions, b: UiOptions): boolean {
   );
 }
 
+/** Colours the game-look preview may use: enough that every texture keeps its own shades. */
+export const GAME_LOOK_SLOTS = 256;
+
+/**
+ * Options for the game-look preview: what the player saw, not what a printer needs. No relief pits (the game's textures are
+ * flat), no minimum-wall thickening, exact shapes and texel colours always on; the filters (glass, leaves, fluids, foliage,
+ * entities) are the user's.
+ */
+export function toGameLookOptions(u: UiOptions): MeshingOptions {
+  return { ...toMeshingOptions(u), exactShapes: true, faceColors: true, reliefDepth: 0, minNozzleWallMm: 0, printerMode: "resin", fillInteriorCavities: false };
+}
+
 /** Build plate footprint in mm. */
 export interface Bed { x: number; y: number }
 export type BedPreset = number | "custom";

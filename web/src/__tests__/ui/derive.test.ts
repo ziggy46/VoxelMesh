@@ -6,6 +6,7 @@ import {
 } from "../../ui/derive";
 import { gzip, serializePayload } from "../../payload/loader";
 import { cubeMesh } from "../helpers";
+import { DEFAULT_UI_OPTIONS as GAME_DEFAULTS, GAME_LOOK_SLOTS, toGameLookOptions } from "../../ui/derive";
 import type { ManifoldReport } from "../../types/mesh";
 
 const report = (o: Partial<ManifoldReport> = {}): ManifoldReport => ({
@@ -216,5 +217,18 @@ describe("misc", () => {
     expect(decodeFragmentData("#other=1")).toBeNull();
     expect(decodeFragmentData("#data=***")).toBeNull();
     void cubeMesh;
+  });
+});
+
+describe("game look", () => {
+  it("shows the game as played: no relief, no thickening, exact shapes and texel colours, the user's filters kept", () => {
+    const o = toGameLookOptions({ ...GAME_DEFAULTS, minWallMm: 1.2, exactShapes: false, faceColors: false, includeGlass: false, solidifyInteriors: true });
+    expect(o.reliefDepth).toBe(0);
+    expect(o.minNozzleWallMm).toBe(0);
+    expect(o.exactShapes).toBe(true);
+    expect(o.faceColors).toBe(true);
+    expect(o.fillInteriorCavities).toBe(false);
+    expect(o.includeGlass).toBe(false);
+    expect(GAME_LOOK_SLOTS).toBeGreaterThanOrEqual(64);
   });
 });

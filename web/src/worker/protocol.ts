@@ -7,8 +7,8 @@ import type { Stage } from "./pipeline";
 
 export interface RunRequest {
   seq: number;
-  /** Preview runs supersede older queued previews; export runs (e.g. the mono STL run) queue separately. */
-  kind: "preview" | "export";
+  /** Preview runs supersede older queued previews; export runs (e.g. the mono STL run) and the game-look run queue separately. */
+  kind: "preview" | "export" | "game";
   options: MeshingOptions;
   maxSlots: number;
   overrides: Array<[number, number]>;

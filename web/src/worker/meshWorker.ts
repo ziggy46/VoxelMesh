@@ -40,8 +40,9 @@ function runOne(req: RunRequest): void {
 
 function process(): void {
   scheduled = false;
-  const todo = [pending.export, pending.preview];
+  const todo = [pending.export, pending.game, pending.preview];
   pending.export = undefined;
+  pending.game = undefined;
   pending.preview = undefined;
   for (const req of todo) if (req) runOne(req);
 }
